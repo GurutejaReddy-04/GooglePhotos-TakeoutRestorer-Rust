@@ -1,0 +1,39 @@
+[package]
+name = "core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+directories.workspace = true
+rusqlite.workspace = true
+zip.workspace = true
+walkdir = "2.4"
+rayon = "1.10"
+rapidfuzz = "0.5.0"
+chrono = "0.4"
+chrono-tz = "0.9"
+tzf-rs = "0.4.8"
+once_cell = "1.19"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sysinfo = "0.30"
+filetime = "0.2"
+crossbeam-channel = "0.5"
+regex = "1.10"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bench]]
+name = "exiftool_bench"
+path = "benches/exiftool_bench.rs"
+harness = false

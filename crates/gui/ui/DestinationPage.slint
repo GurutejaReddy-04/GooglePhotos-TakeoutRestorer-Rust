@@ -1,0 +1,107 @@
+import { Theme } from "components/Theme.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { UtilityCard } from "components/UtilityCard.slint";
+import { DestinationValidation, SettingsSnapshot } from "Models.slint";
+
+export component DestinationPage inherits Rectangle {
+    in property <SettingsSnapshot> settings;
+    callback select_destination();
+    
+    background: Theme.bg_app;
+    
+    VerticalLayout {
+        padding: Theme.space_8;
+        spacing: Theme.space_6;
+        alignment: start;
+        
+        // Header Section
+        VerticalLayout {
+            spacing: Theme.space_2;
+            Text {
+                text: "Choose a destination folder";
+                font-size: Theme.text_xl;
+                font-weight: Theme.font_weight_bold;
+                color: Theme.text_primary;
+                horizontal-alignment: center;
+            }
+            
+            Text {
+                text: "The destination folder is where your processed photos will be saved.";
+                font-size: Theme.text_base;
+                color: Theme.text_secondary;
+                horizontal-alignment: center;
+            }
+        }
+        
+        // Action Target Card
+        UtilityCard {
+            interactive: false;
+            
+            VerticalLayout {
+                padding: Theme.space_8;
+                spacing: Theme.space_6;
+                alignment: center;
+                
+                HorizontalLayout {
+                    alignment: center;
+                    UtilityButton {
+                        text: root.settings.destination_path != "" ? "Change Destination Folder" : "Select Destination Folder";
+                        variant: "primary";
+                        clicked => { root.select_destination(); }
+                    }
+                }
+                
+                if (root.settings.destination_path != ""): VerticalLayout {
+                    spacing: Theme.space_4;
+                    alignment: center;
+                    
+                    Text {
+                        text: root.settings.destination_path;
+                        font-size: Theme.text_sm;
+                        color: Theme.text_primary;
+                        horizontal-alignment: center;
+                        font-weight: Theme.font_weight_medium;
+                    }
+                    
+                    Rectangle {
+                        border-radius: Theme.radius_md;
+                        background: root.settings.destination_validation.kind == "error" ? Theme.status_error.with-alpha(0.1) :
+                                   (root.settings.destination_validation.kind == "warning" ? Theme.status_warning.with-alpha(0.1) : 
+                                   Theme.status_success.with-alpha(0.1));
+                        border-width: 1px;
+                        border-color: root.settings.destination_validation.kind == "error" ? Theme.status_error :
+                                     (root.settings.destination_validation.kind == "warning" ? Theme.status_warning : 
+                                     Theme.status_success);
+                        
+                        VerticalLayout {
+                            padding: Theme.space_4;
+                            spacing: Theme.space_2;
+                            alignment: center;
+                            
+                            Text {
+                                text: root.settings.destination_validation.message;
+                                font-size: Theme.text_sm;
+                                font-weight: Theme.font_weight_semibold;
+                                color: root.settings.destination_validation.kind == "error" ? Theme.status_error :
+                                      (root.settings.destination_validation.kind == "warning" ? Theme.status_warning : 
+                                      Theme.status_success);
+                                horizontal-alignment: center;
+                                wrap: word-wrap;
+                            }
+                            
+                            if (root.settings.destination_validation.kind != "not_set"): Text {
+                                text: round(root.settings.destination_validation.free_gb * 10.0) / 10.0 + " GB free of " 
+                                      + round(root.settings.destination_validation.total_gb) + " GB (" 
+                                      + round(root.settings.destination_validation.pct_free) + "% available)";
+                                font-size: Theme.text_xs;
+                                color: root.settings.destination_validation.free_gb >= 10.0 ? Theme.text_secondary : 
+                                       (root.settings.destination_validation.free_gb >= 2.0 ? Theme.status_warning : Theme.status_error);
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

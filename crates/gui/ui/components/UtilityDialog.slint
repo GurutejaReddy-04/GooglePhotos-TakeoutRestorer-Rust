@@ -1,0 +1,71 @@
+import { Theme } from "Theme.slint";
+import { UtilityButton } from "UtilityButton.slint";
+
+export component UtilityDialog {
+    in property <string> title: "Dialog Title";
+    in property <string> message: "Dialog message text goes here.";
+    in property <string> accept_text: "Accept";
+    in property <string> reject_text: "Cancel";
+    in property <bool> is_warning: false;
+
+    callback accepted();
+    callback rejected();
+
+    width: 100%;
+    height: 100%;
+
+    Rectangle {
+        background: Theme.bg_app.transparentize(0.2); // Scrim
+        
+        TouchArea {
+            // Eat clicks outside
+        }
+
+        Rectangle {
+            width: 400px;
+            background: Theme.bg_surface;
+            border-radius: Theme.radius_md;
+            border-width: 1px;
+            border-color: root.is_warning ? Theme.status_warning : Theme.border_subtle;
+
+            // Simple drop shadow simulation using a slightly larger dark rect could go here, 
+            // but we stick to flat border hierarchy.
+
+            VerticalLayout {
+                padding: Theme.space_6;
+                spacing: Theme.space_4;
+
+                Text {
+                    text: root.title;
+                    font-size: Theme.text_lg;
+                    font-weight: Theme.font_weight_bold;
+                    color: Theme.text_primary;
+                }
+
+                Text {
+                    text: root.message;
+                    font-size: Theme.text_sm;
+                    color: Theme.text_secondary;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: Theme.space_3;
+                    alignment: end;
+                    
+                    UtilityButton {
+                        text: root.reject_text;
+                        variant: "ghost";
+                        clicked => { root.rejected(); }
+                    }
+
+                    UtilityButton {
+                        text: root.accept_text;
+                        variant: root.is_warning ? "danger" : "primary";
+                        clicked => { root.accepted(); }
+                    }
+                }
+            }
+        }
+    }
+}

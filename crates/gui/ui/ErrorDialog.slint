@@ -1,0 +1,61 @@
+import { Theme } from "components/Theme.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { UtilityCard } from "components/UtilityCard.slint";
+
+export component ErrorDialog inherits Rectangle {
+    in property <string> error_message;
+    callback exit_clicked();
+
+    background: Theme.bg_app.with-alpha(0.8);
+    
+    // Centered overlay behavior using TouchArea to block clicks behind it
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                alignment: center;
+                
+                UtilityCard {
+                    width: 500px;
+                    is_warning: true; // Highlights with a subtle warning/error border
+                    
+                    VerticalLayout {
+                        padding: Theme.space_8;
+                        spacing: Theme.space_6;
+                        alignment: center;
+
+                        Text {
+                            text: "⚠️ Fatal Application Error";
+                            font-size: Theme.text_xl;
+                            font-weight: Theme.font_weight_bold;
+                            color: Theme.status_error;
+                            horizontal-alignment: center;
+                        }
+
+                        Text {
+                            text: root.error_message;
+                            font-size: Theme.text_sm;
+                            color: Theme.text_primary;
+                            wrap: word-wrap;
+                            horizontal-alignment: center;
+                        }
+                        
+                        Rectangle { height: 1px; background: Theme.border_subtle; }
+
+                        HorizontalLayout {
+                            alignment: center;
+                            UtilityButton {
+                                text: "Exit Application";
+                                variant: "danger";
+                                clicked => { root.exit_clicked(); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

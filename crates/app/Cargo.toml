@@ -1,0 +1,29 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+app_core = { package = "core", path = "../core" }
+downloader = { path = "../downloader" }
+shared_ui = { path = "../shared_ui" }
+gui = { path = "../gui", optional = true }
+thiserror.workspace = true
+directories.workspace = true
+clap = { version = "4.4", features = ["derive"] }
+ctrlc = "3.4"
+tracing = "0.1"
+rusqlite.workspace = true
+fs2 = "0.4.3"
+
+[features]
+default = ["gui"]
+gui = ["dep:gui"]
+
+[build-dependencies]
+winres = "0.1.12"
+
+[dev-dependencies]
+tempfile = "3.10"

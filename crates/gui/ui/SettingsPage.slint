@@ -1,0 +1,276 @@
+import { Theme } from "components/Theme.slint";
+import { CheckBox, SpinBox, GroupBox } from "std-widgets.slint";
+import { SettingsSnapshot } from "Models.slint";
+
+component SettingsCard inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    in property <bool> is_enabled;
+    callback toggled();
+
+    in property <string> icon;
+
+    background: Theme.bg_surface;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: Theme.border_subtle;
+
+    HorizontalLayout {
+        padding: 15px;
+        alignment: space-between;
+        
+        HorizontalLayout {
+            spacing: 15px;
+            Text {
+                text: root.icon;
+                font-size: 24px;
+                vertical-alignment: center;
+                color: Theme.text_primary;
+            }
+            VerticalLayout {
+                spacing: 5px;
+                alignment: center;
+                Text {
+                    text: root.title;
+                    font-size: 16px;
+                    font-weight: 700;
+                    color: Theme.text_primary;
+                }
+                Text {
+                    text: root.description;
+                    font-size: 12px;
+                    color: Theme.text_secondary;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 15px;
+                
+                TouchArea {
+                    width: 70px;
+                    height: 24px;
+                    Rectangle {
+                        border-radius: 12px;
+                        background: root.is_enabled ? Theme.accent_primary : transparent;
+                        border-width: 1px;
+                        border-color: root.is_enabled ? Theme.accent_primary : Theme.border_subtle;
+                        Text {
+                            text: "Enable";
+                            color: root.is_enabled ? Theme.text_inverted : Theme.text_secondary;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    clicked => { if (!root.is_enabled) { root.toggled(); } }
+                }
+
+                TouchArea {
+                    width: 70px;
+                    height: 24px;
+                    Rectangle {
+                        border-radius: 12px;
+                        background: !root.is_enabled ? Theme.accent_primary : transparent;
+                        border-width: 1px;
+                        border-color: !root.is_enabled ? Theme.accent_primary : Theme.border_subtle;
+                        Text {
+                            text: "Disable";
+                            color: !root.is_enabled ? Theme.text_inverted : Theme.text_secondary;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    clicked => { if (root.is_enabled) { root.toggled(); } }
+                }
+            }
+        }
+    }
+}
+
+export component SettingsPage inherits Rectangle {
+    in property <SettingsSnapshot> settings;
+    callback update_setting(string, string);
+    
+    background: Theme.bg_app;
+    
+    Flickable {
+        VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+            
+            Text {
+                text: "Application Settings";
+                font-size: 24px;
+                font-weight: 700;
+                color: Theme.text_primary;
+            }
+            
+            HorizontalLayout {
+                spacing: 15px;
+                
+                SettingsCard {
+                    icon: "📍";
+                    title: "GPS";
+                    description: "Enable/disable location data. When enabled, latitude and longitude from metadata files will be written to images.";
+                    is_enabled: root.settings.gps_enabled;
+                    toggled => { root.update_setting("gps_enabled", root.settings.gps_enabled ? "false" : "true"); }
+                }
+                
+                SettingsCard {
+                    icon: "🕒";
+                    title: "Timezone";
+                    description: "Enable/disable timezone correction. Uses GPS to detect location and apply the correct local timezone to timestamps.";
+                    is_enabled: root.settings.timezone_enabled;
+                    toggled => { root.update_setting("timezone_enabled", root.settings.timezone_enabled ? "false" : "true"); }
+                }
+            }
+            
+            HorizontalLayout {
+                spacing: 15px;
+                
+                SettingsCard {
+                    icon: "📁";
+                    title: "Files Without Metadata";
+                    description: "Move files without matching JSON metadata to a separate 'Unmatched' folder in the output directory.";
+                    is_enabled: root.settings.unmatched_enabled;
+                    toggled => { root.update_setting("unmatched_enabled", root.settings.unmatched_enabled ? "false" : "true"); }
+                }
+                
+                SettingsCard {
+                    icon: "📈";
+                    title: "Anonymous Logging";
+                    description: "Enable/disable anonymous usage logs for debugging purposes.";
+                    is_enabled: root.settings.anonymous_logging;
+                    toggled => { root.update_setting("anonymous_logging", root.settings.anonymous_logging ? "false" : "true"); }
+                }
+            }
+            
+            Rectangle {
+                background: Theme.bg_surface;
+                border-radius: 10px;
+                border-width: 1px;
+                border-color: Theme.border_subtle;
+                
+                VerticalLayout {
+                    padding: 15px;
+                    spacing: 10px;
+                    Text {
+                        text: "Output Mode:";
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: Theme.text_primary;
+                    }
+                    
+                    HorizontalLayout {
+                        spacing: 20px;
+                        
+                        TouchArea {
+                            width: 250px;
+                            height: 30px;
+                            Rectangle {
+                                border-radius: 5px;
+                                background: root.settings.output_mode == "copy" ? Theme.accent_primary.with-alpha(0.2) : transparent;
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Rectangle {
+                                        width: 16px; height: 16px; border-radius: 8px; border-width: 2px;
+                                        border-color: root.settings.output_mode == "copy" ? Theme.accent_primary : Theme.border_subtle;
+                                        Rectangle {
+                                            width: 8px; height: 8px; border-radius: 4px;
+                                            background: root.settings.output_mode == "copy" ? Theme.accent_primary : transparent;
+                                            x: 4px; y: 4px;
+                                        }
+                                    }
+                                    Text {
+                                        text: "Copy files to destination (Safe)";
+                                        color: Theme.text_primary;
+                                        font-size: 14px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                            clicked => { root.update_setting("output_mode", "copy"); }
+                        }
+                        
+                        TouchArea {
+                            width: 250px;
+                            height: 30px;
+                            Rectangle {
+                                border-radius: 5px;
+                                background: root.settings.output_mode == "in-place" ? Theme.accent_primary.with-alpha(0.2) : transparent;
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Rectangle {
+                                        width: 16px; height: 16px; border-radius: 8px; border-width: 2px;
+                                        border-color: root.settings.output_mode == "in-place" ? Theme.accent_primary : Theme.border_subtle;
+                                        Rectangle {
+                                            width: 8px; height: 8px; border-radius: 4px;
+                                            background: root.settings.output_mode == "in-place" ? Theme.accent_primary : transparent;
+                                            x: 4px; y: 4px;
+                                        }
+                                    }
+                                    Text {
+                                        text: "Modify in-place (keeps backups)";
+                                        color: Theme.text_primary;
+                                        font-size: 14px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                            clicked => { root.update_setting("output_mode", "in-place"); }
+                        }
+                    }
+                    
+                    Text {
+                        text: root.settings.output_mode == "copy" ? "Warning: 'Copy' mode limits speed to your hard drive's Read/Write limits." : "";
+                        color: Theme.status_warning;
+                        font-size: 11px;
+                        visible: root.settings.output_mode == "copy";
+                    }
+                }
+            }
+            
+            Rectangle {
+                background: Theme.bg_surface;
+                border-radius: 10px;
+                border-width: 1px;
+                border-color: root.settings.high_performance ? Theme.status_warning : Theme.border_subtle;
+                
+                HorizontalLayout {
+                    padding: 15px;
+                    spacing: 15px;
+                    
+                    VerticalLayout {
+                        spacing: 5px;
+                        Text {
+                            text: "High Performance Mode";
+                            font-size: 16px;
+                            font-weight: 700;
+                            color: Theme.text_primary;
+                        }
+                        Text {
+                            text: "Uses maximum CPU and disk resources to speed up processing. Your computer may become less responsive while exporting.";
+                            font-size: 12px;
+                            color: Theme.text_secondary;
+                            wrap: word-wrap;
+                        }
+                    }
+                    
+                    CheckBox {
+                        text: "Enable";
+                        checked: root.settings.high_performance;
+                        toggled => { root.update_setting("high_performance", root.settings.high_performance ? "false" : "true"); }
+                    }
+                }
+            }
+            
+            // Allow scrolling space
+            Rectangle { height: 40px; }
+        }
+    }
+}

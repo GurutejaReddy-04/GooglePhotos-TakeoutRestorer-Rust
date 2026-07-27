@@ -1,0 +1,222 @@
+import { Theme } from "components/Theme.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { UtilityCard } from "components/UtilityCard.slint";
+import { LineEdit, ComboBox, ListView } from "std-widgets.slint";
+import { FileResult, ProcessingSnapshot } from "Models.slint";
+
+export component ResultsPage inherits Rectangle {
+    in property <ProcessingSnapshot> processing;
+    
+    callback export_again();
+    callback open_output_folder();
+    callback copy_log_path();
+    callback update_filter(string, string);
+    
+    property <string> current_search: "";
+    property <string> current_filter: "All Files";
+    
+    background: Theme.bg_app;
+    
+    VerticalLayout {
+        padding: Theme.space_8;
+        spacing: Theme.space_6;
+        alignment: start;
+        
+        Text {
+            text: "Processing Complete";
+            font-size: Theme.text_2xl;
+            font-weight: Theme.font_weight_bold;
+            color: Theme.status_success;
+        }
+
+        // --- DASHBOARD SUMMARY ---
+        UtilityCard {
+            interactive: false;
+
+            VerticalLayout {
+                padding: Theme.space_6;
+                spacing: Theme.space_4;
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "FILES PROCESSED"; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; color: Theme.text_secondary; }
+                        Text { text: processing.completed_files; font-size: Theme.text_xl; font-weight: Theme.font_weight_bold; color: Theme.text_primary; }
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "OUTPUT SIZE"; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; color: Theme.text_secondary; }
+                        Text { text: round(processing.output_bytes / 1048576) + " MB"; font-size: Theme.text_xl; font-weight: Theme.font_weight_bold; color: Theme.text_primary; }
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "ELAPSED TIME"; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; color: Theme.text_secondary; }
+                        Text { text: processing.elapsed_text; font-size: Theme.text_xl; font-weight: Theme.font_weight_bold; color: Theme.text_primary; }
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "AVG THROUGHPUT"; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; color: Theme.text_secondary; }
+                        Text { text: processing.speed_text; font-size: Theme.text_xl; font-weight: Theme.font_weight_bold; color: Theme.text_primary; }
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border_subtle; }
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_success; y: 5px; }
+                        Text { text: "Success: " + processing.ok_count; color: Theme.text_secondary; font-size: Theme.text_sm; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_warning; y: 5px; }
+                        Text { text: "Unmatched: " + processing.unmatched_count; color: Theme.text_secondary; font-size: Theme.text_sm; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.bg_hover; y: 5px; }
+                        Text { text: "Skipped: " + processing.skipped_count; color: Theme.text_secondary; font-size: Theme.text_sm; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_error; y: 5px; }
+                        Text { text: "Errors: " + processing.error_count; color: (processing.error_count > 0 ? Theme.status_error : Theme.text_secondary); font-size: Theme.text_sm; }
+                    }
+                }
+            }
+        }
+        
+        // --- ACTIONS ---
+        HorizontalLayout {
+            alignment: start;
+            spacing: Theme.space_4;
+            
+            UtilityButton {
+                text: "Open Output Folder";
+                variant: "primary";
+                clicked => { root.open_output_folder(); }
+            }
+            UtilityButton {
+                text: "Export Again";
+                variant: "secondary";
+                clicked => { root.export_again(); }
+            }
+            UtilityButton {
+                text: "Copy Log Path";
+                variant: "ghost";
+                clicked => { root.copy_log_path(); }
+            }
+        }
+        
+        // --- FILE RESULTS LIST ---
+        Text {
+            text: "Processed Files Details";
+            font-size: Theme.text_lg;
+            font-weight: Theme.font_weight_bold;
+            color: Theme.text_primary;
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space_4;
+            
+            LineEdit {
+                width: 300px;
+                placeholder-text: "Search filename...";
+                text: current_search;
+                edited(text) => {
+                    current_search = text;
+                    update_filter(current_search, current_filter);
+                }
+            }
+            
+            ComboBox {
+                width: 160px;
+                model: ["All Files", "Success", "Matched", "Unmatched", "Error", "Skipped"];
+                current-value: current_filter;
+                selected(val) => {
+                    current_filter = val;
+                    update_filter(current_search, current_filter);
+                }
+            }
+            
+            Rectangle { horizontal-stretch: 1; }
+            
+            Text {
+                text: processing.results.length + " matching files";
+                color: Theme.text_secondary;
+                font-size: Theme.text_sm;
+                vertical-alignment: center;
+            }
+        }
+        
+        Rectangle {
+            vertical-stretch: 1;
+            background: Theme.bg_surface;
+            border-radius: Theme.radius_md;
+            border-width: 1px;
+            border-color: Theme.border_subtle;
+            clip: true;
+            
+            if processing.results.length == 0: Text {
+                text: "No detailed results found.";
+                color: Theme.text_secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            
+            // High-Performance Virtualized ListView
+            if processing.results.length > 0: ListView {
+                width: 100%;
+                height: 100%;
+                for res in processing.results: Rectangle {
+                    height: Theme.list_item_height;
+                    background: ta.has-hover ? Theme.bg_hover : transparent;
+                    
+                    HorizontalLayout {
+                        padding-left: Theme.space_4;
+                        padding-right: Theme.space_4;
+                        spacing: Theme.space_4;
+                        
+                        Text { 
+                            text: (res.status == "Completed" || res.status == "Matched" || res.status == "Success") ? "✅" : (res.status == "Error" ? "❌" : (res.status == "Unmatched" ? "⚠️" : (res.status == "Skipped" ? "🔎" : "⚙️"))); 
+                            font-size: Theme.text_lg; 
+                            vertical-alignment: center; 
+                            width: 30px; 
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            width: 25%;
+                            Text { text: res.filename; color: Theme.text_primary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; overflow: elide; }
+                            Text { text: res.media_type; color: Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            width: 40%;
+                            Text { text: res.destination; color: Theme.text_secondary; font-size: Theme.text_sm; overflow: elide; }
+                            Text { text: res.status == "Error" ? res.error : "Processed correctly"; color: res.status == "Error" ? Theme.status_error : Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text { text: res.status; width: 15%; vertical-alignment: center; horizontal-alignment: right; font-weight: Theme.font_weight_bold; font-size: Theme.text_sm; color: res.status == "Error" ? Theme.status_error : Theme.text_primary; }
+                    }
+                    
+                    Rectangle {
+                        y: parent.height - 1px;
+                        height: 1px;
+                        width: 100%;
+                        background: Theme.border_subtle;
+                    }
+                    
+                    ta := TouchArea {}
+                }
+            }
+        }
+    }
+}

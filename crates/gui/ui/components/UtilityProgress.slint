@@ -1,0 +1,38 @@
+import { Theme } from "Theme.slint";
+
+export component UtilityProgress {
+    in property <float> progress: 0.0; // 0.0 to 1.0
+    in property <bool> indeterminate: false;
+
+    height: 4px;
+    width: 100%;
+
+    Rectangle {
+        border-radius: 2px;
+        background: Theme.border_subtle;
+        clip: true;
+
+        if !root.indeterminate: Rectangle {
+            x: 0;
+            y: 0;
+            height: parent.height;
+            width: parent.width * Math.max(0.0, Math.min(1.0, root.progress));
+            background: Theme.accent_primary;
+            animate width { duration: Theme.duration_normal; easing: ease-in-out; }
+        }
+
+        if root.indeterminate: Rectangle {
+            y: 0;
+            height: parent.height;
+            width: parent.width * 0.3;
+            background: Theme.accent_primary;
+            
+            // Slint animation for indeterminate spinner
+            x: root.indeterminate ? parent.width : -self.width;
+            animate x {
+                duration: 1500ms;
+                iteration-count: -1;
+            }
+        }
+    }
+}

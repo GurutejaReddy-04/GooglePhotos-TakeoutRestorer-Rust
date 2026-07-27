@@ -1,0 +1,209 @@
+import { Theme } from "components/Theme.slint";
+export { Theme }
+import { UtilityButton } from "components/UtilityButton.slint";
+import { WelcomePage, PastRun } from "WelcomePage.slint";
+import { ImportPage } from "ImportPage.slint";
+import { DestinationPage } from "DestinationPage.slint";
+import { SettingsPage } from "SettingsPage.slint";
+import { ConfirmPage } from "ConfirmPage.slint";
+import { ResultsPage } from "ResultsPage.slint";
+import { ErrorDialog } from "ErrorDialog.slint";
+import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot } from "Models.slint";
+
+export component MainWindow inherits Window {
+    title: "Google Photos Takeout Restorer";
+    icon: @image-url("../../../assets/icon.png");
+    preferred-width: 1000px;
+    preferred-height: 750px;
+    min-width: 900px;
+    min-height: 650px;
+
+    in-out property <int> current_step: 0;
+    in-out property <string> import_error: "";
+    
+    // UI state 
+    property <bool> next_button_enabled: 
+        (current_step == 0) ||
+        (current_step == 1 && inputs.length > 0) || 
+        (current_step == 2 && (settings.destination_validation.kind == "valid" || settings.destination_validation.kind == "warning")) ||
+        (current_step == 3) || 
+        (current_step == 4 && processing.is_finished);
+        
+    in property <bool> back_button_enabled: current_step > 0 && current_step < 5 && !processing.is_processing;
+    in property <string> next_button_text: current_step == 4 ? "Finish" : "Next Step ";
+    in property <bool> show_fatal_error: false;
+    in property <string> fatal_error_message: "";
+    
+    in property <[PastRun]> past_runs: [];
+    
+    in property <[string]> inputs: [];
+    in property <SettingsSnapshot> settings;
+    in property <ProcessingSnapshot> processing;
+    
+    // Callbacks
+    callback go_next();
+    callback go_back();
+    callback shutdown_requested();
+    callback resume_run_clicked(string);
+    callback delete_run_clicked(string);
+    callback recover_run_clicked(string);
+    callback select_zip_files();
+    callback select_folders();
+    callback select_destination();
+    callback remove_input(string);
+    callback clear_inputs();
+    callback change_theme(string);
+    callback update_setting(string, string);
+    callback start_processing();
+    callback stop_processing();
+    callback export_again();
+    callback open_output_folder();
+    callback copy_log_path();
+    callback update_results_filter(string, string);
+    
+    background: Theme.bg_app;
+
+    VerticalLayout {
+        // Header (Hidden on Welcome Page)
+        Rectangle {
+            height: 65px;
+            visible: root.current_step > 0;
+            background: Theme.bg_panel;
+            
+            HorizontalLayout {
+                padding-left: 25px;
+                padding-right: 25px;
+                alignment: space-between;
+                
+                Text {
+                    text: "Google Photos Takeout Restorer";
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: Theme.text_primary;
+                    vertical-alignment: center;
+                }
+                
+                HorizontalLayout {
+                    spacing: 15px;
+                    
+                    Text {
+                        text: root.current_step == 1 ? "Step 1 of 5 — Import" :
+                              root.current_step == 2 ? "Step 2 of 5 — Destination" :
+                              root.current_step == 3 ? "Step 3 of 5 — Settings" :
+                              root.current_step == 4 ? "Step 4 of 5 — Export" :
+                              root.current_step == 5 ? "Step 5 of 5 — Results" : "";
+                        font-size: 12px;
+                        color: Theme.text_secondary;
+                        vertical-alignment: center;
+                    }
+                    
+                    Text {
+                        text: "Theme:";
+                        font-size: 12px;
+                        color: Theme.text_secondary;
+                        vertical-alignment: center;
+                    }
+                    
+                    // Simple theme toggle placeholder for now
+                    TouchArea {
+                        width: 90px;
+                        Rectangle {
+                            border-radius: 6px;
+                            border-width: 1px;
+                            border-color: Theme.border_subtle;
+                            background: Theme.bg_surface;
+                            Text {
+                                text: Theme.is-dark-mode ? "🌙 Dark" : "☀️ Light";
+                                color: Theme.text_primary;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        clicked => {
+                            root.change_theme(root.settings.theme == "Dark" ? "Light" : (root.settings.theme == "Light" ? "System" : "Dark"));
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Content Area
+        Rectangle {
+            vertical-stretch: 1;
+            
+            if (root.current_step == 0): WelcomePage {
+                past_runs: root.past_runs;
+                create_new_project_clicked => { root.go_next(); }
+                resume_run_clicked(id) => { root.resume_run_clicked(id); }
+                delete_run_clicked(id) => { root.delete_run_clicked(id); }
+                recover_run_clicked(id) => { root.recover_run_clicked(id); }
+            }
+            if (root.current_step == 1): ImportPage {
+                inputs: root.inputs;
+                error_message <=> root.import_error;
+                select_zip_files => { root.select_zip_files(); }
+                select_folders => { root.select_folders(); }
+                remove_input(path) => { root.remove_input(path); }
+                clear_inputs => { root.clear_inputs(); }
+            }
+            if (root.current_step == 2): DestinationPage {
+                settings: root.settings;
+                select_destination => { root.select_destination(); }
+            }
+            if (root.current_step == 3): SettingsPage {
+                settings: root.settings;
+                update_setting(k, v) => { root.update_setting(k, v); }
+            }
+            if (root.current_step == 4): ConfirmPage {
+                inputs: root.inputs;
+                settings: root.settings;
+                processing: root.processing;
+                start_processing => { root.start_processing(); }
+                stop_processing => { root.stop_processing(); }
+            }
+            if (root.current_step == 5): ResultsPage {
+                processing: root.processing;
+                export_again => { root.export_again(); }
+                open_output_folder => { root.open_output_folder(); }
+                copy_log_path => { root.copy_log_path(); }
+                update_filter(s, f) => { root.update_results_filter(s, f); }
+            }
+        }
+        
+        // Footer (Hidden on Welcome Page)
+        Rectangle {
+            height: 70px;
+            visible: root.current_step > 0 && root.current_step < 5; // Hidden on Welcome and Results? 
+            // Wait, Python says Results doesn't use footer buttons. Welcome hides footer.
+            
+            HorizontalLayout {
+                padding-left: 25px;
+                padding-right: 25px;
+                alignment: space-between;
+                
+                // Back Button
+                UtilityButton {
+                    text: "Back";
+                    variant: "ghost";
+                    enabled: root.back_button_enabled;
+                    clicked => { root.go_back(); }
+                }
+                
+                // Next Button
+                UtilityButton {
+                    text: root.next_button_text;
+                    variant: "primary";
+                    enabled: root.next_button_enabled;
+                    clicked => { root.go_next(); }
+                }
+            }
+        }
+    }
+    
+    if (root.show_fatal_error): ErrorDialog {
+        error_message: root.fatal_error_message;
+        exit_clicked => { root.shutdown_requested(); }
+    }
+}

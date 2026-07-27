@@ -1,0 +1,27 @@
+{
+            "title": "IMG_0095.JPG",
+            "description": "",
+            "imageViews": "0",
+            "creationTime": {
+                "timestamp": "1620000000",
+                "formatted": "May 3, 2021, 12:00:00 AM UTC"
+            },
+            "photoTakenTime": {
+                "timestamp": "1620000000",
+                "formatted": "May 3, 2021, 12:00:00 AM UTC"
+            },
+            "geoData": {
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "altitude": 0.0,
+                "latitudeSpan": 0.0,
+                "longitudeSpan": 0.0
+            },
+            "geoDataExif": {
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "altitude": 0.0,
+                "latitudeSpan": 0.0,
+                "longitudeSpan": 0.0
+            }
+        }

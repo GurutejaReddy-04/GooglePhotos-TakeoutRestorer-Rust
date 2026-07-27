@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "crates/core",
+    "crates/downloader",
+    "crates/app",
+    "crates/shared_ui",
+    "crates/gui"
+]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+authors = ["Takeout Restorer Team"]
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+ureq = { version = "2.9", default-features = false, features = ["tls", "native-certs"] }
+zip = { version = "2.2.0" }
+tar = "0.4"
+flate2 = "1.0"
+directories = "5.0"
+sha2 = "0.10"
+tempfile = "3.12"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+panic = "abort"
+strip = true

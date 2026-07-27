@@ -1,0 +1,17 @@
+[package]
+name = "downloader"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+core = { path = "../core" }
+thiserror.workspace = true
+ureq.workspace = true
+zip.workspace = true
+tar.workspace = true
+flate2.workspace = true
+directories.workspace = true
+sha2.workspace = true
+tempfile.workspace = true

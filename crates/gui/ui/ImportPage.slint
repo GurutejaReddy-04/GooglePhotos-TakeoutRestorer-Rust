@@ -1,0 +1,170 @@
+import { Theme } from "components/Theme.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { UtilityCard } from "components/UtilityCard.slint";
+import { ListView } from "std-widgets.slint";
+
+export component ImportPage inherits Rectangle {
+    in property <[string]> inputs: [];
+    in-out property <string> error_message: "";
+    
+    callback select_zip_files();
+    callback select_folders();
+    callback remove_input(string);
+    callback clear_inputs();
+
+    background: Theme.bg_app;
+
+    VerticalLayout {
+        padding: Theme.space_8;
+        spacing: Theme.space_6;
+        alignment: start;
+
+        // Header Section
+        VerticalLayout {
+            spacing: Theme.space_2;
+            Text {
+                text: "Import Google Photos Takeout Sources";
+                font-size: Theme.text_xl;
+                font-weight: Theme.font_weight_bold;
+                color: Theme.text_primary;
+            }
+            Text {
+                text: "Select ZIP archives or extracted folders containing your Takeout media and JSON sidecars.";
+                font-size: Theme.text_base;
+                color: Theme.text_secondary;
+            }
+            if root.error_message != "": Rectangle {
+                background: Theme.status_error.with-alpha(0.1);
+                border-radius: Theme.radius_md;
+                border-width: 1px;
+                border-color: Theme.status_error;
+                padding: Theme.space_4;
+                HorizontalLayout {
+                    padding: Theme.space_3;
+                    Text {
+                        text: root.error_message;
+                        color: Theme.status_error;
+                        font-size: Theme.text_sm;
+                        font-weight: Theme.font_weight_medium;
+                    }
+                }
+            }
+        }
+
+        // Action Target Card
+        UtilityCard {
+            interactive: true;
+            clicked => { root.select_zip_files(); }
+            
+            VerticalLayout {
+                padding: Theme.space_8;
+                spacing: Theme.space_4;
+                alignment: center;
+
+                Text {
+                    text: "+";
+                    font-size: 36px;
+                    font-weight: 300;
+                    color: Theme.text_secondary;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "Add Takeout Archives or Extracted Folders";
+                    font-size: Theme.text_lg;
+                    font-weight: Theme.font_weight_semibold;
+                    color: Theme.text_primary;
+                    horizontal-alignment: center;
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: Theme.space_4;
+                    
+                    UtilityButton {
+                        text: "Select ZIP Files";
+                        variant: "primary";
+                        clicked => { root.select_zip_files(); }
+                    }
+
+                    UtilityButton {
+                        text: "Select Folders";
+                        variant: "secondary";
+                        clicked => { root.select_folders(); }
+                    }
+                }
+            }
+        }
+
+        // Selected Items Header
+        HorizontalLayout {
+            alignment: space-between;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Selected Sources (" + root.inputs.length + ")";
+                    font-size: Theme.text_base;
+                    font-weight: Theme.font_weight_semibold;
+                    color: Theme.text_primary;
+                }
+            }
+            if (root.inputs.length == 0): VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "No sources added yet";
+                    font-size: Theme.text_sm;
+                    color: Theme.text_disabled;
+                }
+            }
+            if (root.inputs.length > 0): VerticalLayout {
+                alignment: center;
+                UtilityButton {
+                    text: "Clear All";
+                    variant: "ghost";
+                    clicked => { root.clear_inputs(); }
+                }
+            }
+        }
+
+        // Selected Items List
+        Rectangle {
+            vertical-stretch: 1;
+            border-radius: Theme.radius_md;
+            border-width: 1px;
+            border-color: Theme.border_subtle;
+            background: Theme.bg_surface;
+
+            ListView {
+                for path in root.inputs: Rectangle {
+                    height: 48px;
+
+                    HorizontalLayout {
+                        padding-left: Theme.space_4;
+                        padding-right: Theme.space_2;
+                        alignment: space-between;
+                        spacing: Theme.space_3;
+
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: path;
+                                font-size: Theme.text_sm;
+                                color: Theme.text_primary;
+                                overflow: elide;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            UtilityButton {
+                                text: "Remove";
+                                variant: "ghost";
+                                clicked => { root.remove_input(path); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
