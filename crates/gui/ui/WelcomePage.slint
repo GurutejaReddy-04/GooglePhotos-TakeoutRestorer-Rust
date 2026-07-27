@@ -1,0 +1,166 @@
+import { Theme } from "components/Theme.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { UtilityCard } from "components/UtilityCard.slint";
+import { UtilityBadge } from "components/UtilityBadge.slint";
+import { UtilityProgress } from "components/UtilityProgress.slint";
+import { ScrollView, ListView } from "std-widgets.slint";
+
+export struct PastRun {
+    id: string,
+    title: string,
+    last_active: string,
+    percent_complete: int,
+    completed_files: int,
+    total_files: int,
+    has_recovery_data: bool,
+}
+
+export component WelcomePage inherits Rectangle {
+    callback create_new_project_clicked;
+    callback resume_run_clicked(string);
+    callback delete_run_clicked(string);
+    callback recover_run_clicked(string);
+    
+    in property <[PastRun]> past_runs: [];
+
+    background: Theme.bg_app;
+
+    VerticalLayout {
+        padding: Theme.space_8;
+        spacing: Theme.space_6;
+        alignment: start;
+        
+        // Header
+        VerticalLayout {
+            spacing: Theme.space_2;
+            Text {
+                text: "Google Photos Takeout Restorer";
+                font-size: Theme.text_xl;
+                font-weight: Theme.font_weight_bold;
+                color: Theme.text_primary;
+            }
+            Text {
+                text: "Start a new restoration or resume a previous session.";
+                font-size: Theme.text_base;
+                color: Theme.text_secondary;
+            }
+        }
+        
+        // Start New Button
+        HorizontalLayout {
+            alignment: start;
+            UtilityButton {
+                text: "Start New Export";
+                variant: "primary";
+                icon: "+";
+                clicked => { root.create_new_project_clicked(); }
+            }
+        }
+
+        // Recent Runs Section
+        if root.past_runs.length > 0 : VerticalLayout {
+            spacing: Theme.space_4;
+            
+            Text {
+                text: "Recent Sessions";
+                font-size: Theme.text_lg;
+                font-weight: Theme.font_weight_semibold;
+                color: Theme.text_primary;
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
+                
+                ListView {
+                    for run in root.past_runs: VerticalLayout {
+                        padding-bottom: Theme.space_4;
+
+                        UtilityCard {
+                            is_warning: run.has_recovery_data;
+                            
+                            VerticalLayout {
+                                padding: Theme.space_4;
+                                spacing: Theme.space_3;
+                                
+                                HorizontalLayout {
+                                    alignment: space-between;
+                                    
+                                    VerticalLayout {
+                                        spacing: Theme.space_1;
+                                        HorizontalLayout {
+                                            spacing: Theme.space_2;
+                                            Text {
+                                                text: run.title;
+                                                font-size: Theme.text_base;
+                                                font-weight: Theme.font_weight_bold;
+                                                color: Theme.text_primary;
+                                                vertical-alignment: center;
+                                            }
+                                            if run.has_recovery_data: UtilityBadge {
+                                                text: "Recovery Available";
+                                                status: "warning";
+                                            }
+                                            if !run.has_recovery_data && run.percent_complete == 100: UtilityBadge {
+                                                text: "Completed";
+                                                status: "success";
+                                            }
+                                        }
+                                        Text {
+                                            text: "Last active: " + run.last_active;
+                                            font-size: Theme.text_xs;
+                                            color: Theme.text_secondary;
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: Theme.space_2;
+                                        alignment: end;
+                                        
+                                        if run.has_recovery_data: UtilityButton {
+                                            text: "Recover";
+                                            variant: "secondary";
+                                            clicked => { root.recover_run_clicked(run.id); }
+                                        }
+                                        if !run.has_recovery_data && run.percent_complete < 100: UtilityButton {
+                                            text: "Resume";
+                                            variant: "secondary";
+                                            clicked => { root.resume_run_clicked(run.id); }
+                                        }
+                                        UtilityButton {
+                                            text: "Delete";
+                                            variant: "ghost";
+                                            clicked => { root.delete_run_clicked(run.id); }
+                                        }
+                                    }
+                                }
+                                
+                                // Progress Track
+                                VerticalLayout {
+                                    spacing: Theme.space_2;
+                                    UtilityProgress {
+                                        progress: run.percent_complete / 100.0;
+                                    }
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        Text {
+                                            text: run.percent_complete + "%";
+                                            font-size: Theme.text_xs;
+                                            color: Theme.text_primary;
+                                            font-weight: Theme.font_weight_semibold;
+                                        }
+                                        Text {
+                                            text: run.completed_files + " / " + run.total_files + " files";
+                                            font-size: Theme.text_xs;
+                                            color: Theme.text_secondary;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

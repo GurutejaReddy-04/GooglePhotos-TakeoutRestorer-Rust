@@ -1,0 +1,20 @@
+# Rust
+target/
+
+# Lock file (keep for applications)
+# Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary
+*.tmp
+*.bak

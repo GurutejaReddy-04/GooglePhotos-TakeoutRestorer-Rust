@@ -1,0 +1,69 @@
+import { Theme } from "Theme.slint";
+
+export component UtilityCard {
+    in property <bool> interactive: false;
+    in property <bool> is_warning: false;
+    
+    callback clicked();
+
+    property <bool> has_focus: focus_scope.has-focus;
+
+    min-height: 40px;
+    width: 100%;
+
+    states [
+        warning when root.is_warning: {
+            bg.border-color: Theme.status_warning;
+            bg.background: Theme.bg_surface;
+        }
+        interactive_hover when root.interactive && touch.has-hover: {
+            bg.border-color: Theme.border_subtle;
+            bg.background: Theme.bg_hover;
+        }
+        default when true: {
+            bg.border-color: Theme.border_subtle;
+            bg.background: Theme.bg_surface;
+        }
+    ]
+
+    bg := Rectangle {
+        border-radius: Theme.radius_md;
+        border-width: 1px;
+        
+        animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+        
+        @children
+
+        // Focus ring
+        if root.has_focus: Rectangle {
+            x: -2px; y: -2px;
+            width: parent.width + 4px;
+            height: parent.height + 4px;
+            border-width: 2px;
+            border-color: Theme.border_focus;
+            border-radius: Theme.radius_md + 2px;
+        }
+    }
+
+    touch := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.interactive;
+        clicked => {
+            if (root.interactive) { root.clicked(); }
+        }
+        mouse-cursor: root.interactive ? pointer : default;
+    }
+
+    focus_scope := FocusScope {
+        enabled: root.interactive;
+        key-pressed(e) => {
+            if (e.text == " " || e.text == "\n") && root.interactive {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    forward-focus: focus_scope;
+}

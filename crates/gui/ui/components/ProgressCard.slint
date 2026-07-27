@@ -1,0 +1,64 @@
+import { Theme } from "Theme.slint";
+
+export component ProgressCard inherits Rectangle {
+    in property <string> phase;
+    in property <string> speed;
+    in property <string> eta;
+    in property <float> progress_value;
+    in property <string> progress_text;
+    
+    background: Theme.bg_surface;
+    border-color: Theme.border_subtle;
+    border-width: 1px;
+    border-radius: 8px;
+    
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+        
+        HorizontalLayout {
+            alignment: space-between;
+            
+            Text {
+                text: "Phase: " + root.phase;
+                color: Theme.text_primary;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            
+            Text {
+                text: root.speed;
+                color: Theme.text_secondary;
+                font-size: 14px;
+            }
+            
+            Text {
+                text: "ETA: " + root.eta;
+                color: Theme.text_secondary;
+                font-size: 14px;
+            }
+        }
+        
+        Rectangle {
+            height: 8px;
+            border-radius: 4px;
+            background: Theme.border_subtle;
+            
+            Rectangle {
+                width: parent.width * max(0.0, min(1.0, root.progress_value));
+                height: 100%;
+                background: Theme.accent_primary;
+                border-radius: 4px;
+                // Animate progress smoothly
+                animate width { duration: 200ms; easing: linear; }
+            }
+        }
+        
+        Text {
+            text: root.progress_text;
+            color: Theme.text_secondary;
+            font-size: 12px;
+            horizontal-alignment: center;
+        }
+    }
+}

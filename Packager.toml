@@ -1,0 +1,21 @@
+[product]
+name = "Google Photos Takeout Restorer"
+version = "1.0.0"
+identifier = "com.takeoutrestorer.app"
+description = "Restores Google Photos Takeout metadata using ExifTool."
+copyright = "Copyright (c) 2026 Takeout Restorer Team"
+
+[bundle]
+active = true
+targets = ["msi", "appimage", "deb", "dmg"]
+icon = ["icons/icon.png"]
+out_dir = "target/release/bundle"
+
+[bundle.windows]
+certificate_thumbprint = ""
+digest_algorithm = "sha256"
+
+[bundle.deb]
+depends = ["libgtk-3-0"]
+
+[bundle.appimage]

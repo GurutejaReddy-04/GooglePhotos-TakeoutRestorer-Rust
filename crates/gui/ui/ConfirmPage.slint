@@ -1,0 +1,241 @@
+import { Theme } from "components/Theme.slint";
+
+import { UtilityCard } from "components/UtilityCard.slint";
+import { UtilityButton } from "components/UtilityButton.slint";
+import { SettingsSnapshot, ProcessingSnapshot } from "Models.slint";
+
+export component ConfirmPage inherits Rectangle {
+    in property <[string]> inputs: [];
+    in property <SettingsSnapshot> settings;
+    in property <ProcessingSnapshot> processing;
+    
+    callback start_processing();
+    callback stop_processing();
+    
+    property <bool> is_ready: inputs.length > 0 && settings.destination_validation.kind == "valid";
+    property <bool> show_processing: processing.is_processing || processing.completed_files > 0 || (processing.current_phase_text != "Initializing" && processing.current_phase_text != "Ready" && processing.current_phase_text != "");
+    property <float> progress_pct: processing.total_files > 0 ? (processing.completed_files * 1.0) / (processing.total_files * 1.0) : 0.0;
+    property <bool> show_logs: false;
+    
+    background: Theme.bg_app;
+    
+    VerticalLayout {
+        padding: Theme.space_8;
+        spacing: Theme.space_6;
+        alignment: start;
+        
+        Text {
+            text: show_processing ? "Processing Takeout Data" : "Ready to Export";
+            font-size: Theme.text_2xl;
+            font-weight: Theme.font_weight_bold;
+            color: Theme.text_primary;
+            horizontal-alignment: center;
+        }
+        
+        // Summary Card (Pre-export)
+        if (!show_processing): UtilityCard {
+            interactive: false;
+
+            VerticalLayout {
+                padding: Theme.space_6;
+                spacing: Theme.space_4;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Target Destination:"; font-weight: Theme.font_weight_semibold; color: Theme.text_primary; font-size: Theme.text_sm; }
+                    Text {
+                        text: settings.destination_path != "" ? settings.destination_path : "No destination selected";
+                        color: Theme.accent_primary;
+                        font-size: Theme.text_sm;
+                        font-weight: Theme.font_weight_bold;
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border_subtle; }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Input Sources:"; font-weight: Theme.font_weight_semibold; color: Theme.text_primary; font-size: Theme.text_sm; }
+                    Text { text: inputs.length + " source item(s)"; color: Theme.text_secondary; font-size: Theme.text_sm; }
+                }
+
+                Rectangle { height: 1px; background: Theme.border_subtle; }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Execution Mode:"; font-weight: Theme.font_weight_semibold; color: Theme.text_primary; font-size: Theme.text_sm; }
+                    Text {
+                        text: (settings.output_mode == "in-place" ? "In-Place Restructure" : "Copy to Target Directory") + (settings.high_performance ? " (Multi-Core)" : "");
+                        color: Theme.text_secondary;
+                        font-size: Theme.text_sm;
+                    }
+                }
+            }
+        }
+
+        // Processing Live Status Card
+        if (show_processing): UtilityCard {
+            interactive: false;
+            
+            VerticalLayout {
+                padding: Theme.space_8;
+                spacing: Theme.space_6;
+
+                // Phase and Progress Text
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: processing.current_phase_text;
+                        font-size: Theme.text_lg;
+                        font-weight: Theme.font_weight_bold;
+                        color: Theme.text_primary;
+                    }
+                    Text {
+                        text: processing.formatted_progress;
+                        font-size: Theme.text_2xl;
+                        font-weight: Theme.font_weight_bold;
+                        color: Theme.accent_primary;
+                    }
+                }
+
+                // Progress Bar Track
+                Rectangle {
+                    height: 12px;
+                    border-radius: Theme.radius_full;
+                    background: Theme.bg_subtle;
+
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * root.progress_pct;
+                        height: 100%;
+                        border-radius: Theme.radius_full;
+                        background: Theme.accent_primary;
+                    }
+                }
+
+                // Processing Metrics Grid
+                HorizontalLayout {
+                    alignment: space-between;
+                    
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "COMPLETED"; font-size: Theme.text_xs; color: Theme.text_disabled; font-weight: Theme.font_weight_semibold; }
+                        Text { text: processing.completed_files + " / " + processing.total_files; color: Theme.text_primary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "SPEED"; font-size: Theme.text_xs; color: Theme.text_disabled; font-weight: Theme.font_weight_semibold; }
+                        Text { text: processing.speed_text; color: Theme.text_primary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "ELAPSED"; font-size: Theme.text_xs; color: Theme.text_disabled; font-weight: Theme.font_weight_semibold; }
+                        Text { text: processing.elapsed_text; color: Theme.text_primary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.space_1;
+                        Text { text: "TIME REMAINING"; font-size: Theme.text_xs; color: Theme.text_disabled; font-weight: Theme.font_weight_semibold; }
+                        Text { text: processing.eta_text; color: Theme.text_primary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                }
+
+                // Current File Highlight
+                Rectangle {
+                    background: Theme.bg_subtle;
+                    border-radius: Theme.radius_sm;
+                    padding: Theme.space_3;
+                    
+                    Text {
+                        text: processing.current_filename != "" ? "Current: " + processing.current_filename : "Waiting for files...";
+                        color: Theme.text_secondary;
+                        font-size: Theme.text_xs;
+                        overflow: elide;
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border_subtle; }
+
+                // Outcome Metrics
+                HorizontalLayout {
+                    alignment: space-between;
+                    
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_success; y: 5px; }
+                        Text { text: "Success: " + processing.ok_count; color: Theme.text_secondary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_warning; y: 5px; }
+                        Text { text: "Unmatched: " + processing.unmatched_count; color: Theme.text_secondary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.bg_hover; y: 5px; }
+                        Text { text: "Skipped: " + processing.skipped_count; color: Theme.text_secondary; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.space_2;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.status_error; y: 5px; }
+                        Text { text: "Errors: " + processing.error_count; color: (processing.error_count > 0 ? Theme.status_error : Theme.text_secondary); font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; }
+                    }
+                }
+                
+                Rectangle { height: 1px; background: Theme.border_subtle; }
+                
+                HorizontalLayout {
+                    alignment: center;
+                    UtilityButton {
+                        text: root.show_logs ? "Hide Live Activity Log" : "View Live Activity Log";
+                        variant: "ghost";
+                        clicked => { root.show_logs = !root.show_logs; }
+                    }
+                }
+                
+                if (root.show_logs): Rectangle {
+                    height: 150px;
+                    background: Theme.bg_subtle;
+                    border-radius: Theme.radius_md;
+                    border-width: 1px;
+                    border-color: Theme.border_subtle;
+                    
+                    VerticalLayout {
+                        padding: Theme.space_2;
+                        Flickable {
+                            viewport-height: processing.live_logs.length * 20px;
+                            VerticalLayout {
+                                for log in processing.live_logs: Text {
+                                    text: log;
+                                    font-size: Theme.text_xs;
+                                    color: Theme.text_secondary;
+                                    font-family: "monospace";
+                                    height: 20px;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Action Button Bar
+        HorizontalLayout {
+            alignment: center;
+            spacing: Theme.space_6;
+            
+            if (!show_processing): UtilityButton {
+                text: "Start Export";
+                variant: "primary";
+                enabled: root.is_ready;
+                clicked => { root.start_processing(); }
+            }
+            
+            if (show_processing): UtilityButton {
+                text: "Cancel Processing";
+                variant: "danger";
+                enabled: processing.is_processing;
+                clicked => { root.stop_processing(); }
+            }
+        }
+    }
+}

@@ -1,0 +1,52 @@
+export struct DestinationValidation {
+    kind: string, // "not_set", "valid", "warning", "error"
+    free_gb: float,
+    total_gb: float,
+    pct_free: float,
+    message: string,
+}
+
+export struct SettingsSnapshot {
+    destination_path: string,
+    destination_validation: DestinationValidation,
+    gps_enabled: bool,
+    timezone_enabled: bool,
+    unmatched_enabled: bool,
+    anonymous_logging: bool,
+    output_mode: string,
+    high_performance: bool,
+    theme: string,
+}
+
+export struct FileResult {
+    filename: string,
+    status: string,
+    destination: string,
+    timestamp: string,
+    media_type: string,
+    error: string,
+}
+
+export struct ProcessingSnapshot {
+    current_phase_text: string,
+    formatted_progress: string,
+    eta_text: string,
+    speed_text: string,
+    elapsed_text: string,
+    current_filename: string,
+    has_errors: bool,
+    error_count: int,
+    ok_count: int,
+    skipped_count: int,
+    unmatched_count: int,
+    total_files: int,
+    completed_files: int,
+    image_count: int,
+    video_count: int,
+    output_bytes: float,
+    is_finished: bool,
+    is_paused: bool,
+    is_processing: bool,
+    results: [FileResult],
+    live_logs: [string],
+}
