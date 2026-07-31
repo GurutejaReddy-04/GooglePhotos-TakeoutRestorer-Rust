@@ -26,10 +26,10 @@ export component SetupPanel inherits Rectangle {
         // Scrollable content
         Flickable {
             vertical-stretch: 1;
-            padding: 16px;
             viewport-height: content_layout.preferred-height;
             
             content_layout := VerticalLayout {
+                padding: 16px;
                 spacing: 16px;
                 alignment: start;
                 
@@ -83,11 +83,15 @@ export component SetupPanel inherits Rectangle {
                             mode_changed(m) => { root.update_setting("output_mode", m); }
                         }
                         
-                        if (root.settings.output_mode == "copy"): HorizontalLayout {
-                            spacing: 8px;
-                            Text { text: "Dest:"; vertical-alignment: center; color: Theme.text_primary; font-size: Theme.text_sm; }
+                        if (root.settings.output_mode == "copy"): VerticalLayout {
+                            spacing: Theme.space_2;
+                            Text { 
+                                text: "Destination Folder"; 
+                                font-size: Theme.text_sm; 
+                                font-weight: Theme.font_weight_semibold; 
+                                color: Theme.text_primary; 
+                            }
                             SecondaryButton {
-                                horizontal-stretch: 1;
                                 text: root.settings.destination_path == "" ? "Choose folder..." : root.settings.destination_path;
                                 clicked => { root.select_destination(); }
                             }
