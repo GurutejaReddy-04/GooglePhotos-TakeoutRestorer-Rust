@@ -1,0 +1,34 @@
+import { Theme } from "Theme.slint";
+
+export component PageHeader inherits VerticalLayout {
+    in property <string> eyebrow: "";
+    in property <string> title;
+    in property <string> description: "";
+
+    spacing: Theme.space_2;
+
+    if (root.eyebrow != ""): Text {
+        text: root.eyebrow;
+        color: Theme.accent_primary;
+        font-family: Theme.font_family;
+        font-size: Theme.text_xs;
+        font-weight: Theme.font_weight_bold;
+    }
+
+    Text {
+        text: root.title;
+        color: Theme.text_primary;
+        font-family: Theme.font_family;
+        font-size: Theme.text_2xl;
+        font-weight: Theme.font_weight_bold;
+        wrap: word-wrap;
+    }
+
+    if (root.description != ""): Text {
+        text: root.description;
+        color: Theme.text_secondary;
+        font-family: Theme.font_family;
+        font-size: Theme.text_base;
+        wrap: word-wrap;
+    }
+}

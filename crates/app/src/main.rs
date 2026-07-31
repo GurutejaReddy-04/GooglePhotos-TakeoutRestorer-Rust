@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let snapshot_rx = ViewModelUpdater::spawn(
         event_rx,
-        SnapshotPolicy::Debounced(std::time::Duration::from_millis(50)),
+        SnapshotPolicy::Debounced(std::time::Duration::from_millis(1000)),
     );
 
     // Pre-load recent runs for Welcome page
@@ -74,8 +74,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "gui")]
     if cli.gui || (cli.inputs.is_empty() && cli.output.is_none()) {
-        let runner = GuiRunner::new(dispatcher, snapshot_rx);
-        runner.run()?;
+        // Let Slint use the default hardware-accelerated backend (winit with OpenGL) to restore native OS drag-and-drop.
+        let runner = GuiRunner::new(dispatcher, snapshot_rx, config.ui.theme.clone());
+        let res = runner.run();
+        
+        // Ensure all ExifTool zombie processes are forcefully killed on exit
+        app_core::exiftool::cleanup_all_processes();
+        
+        res?;
         return Ok(());
     }
 

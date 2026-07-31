@@ -1,12 +1,14 @@
 import { Theme } from "components/Theme.slint";
 import { UtilityButton } from "components/UtilityButton.slint";
 import { UtilityCard } from "components/UtilityCard.slint";
+import { PageHeader } from "components/PageHeader.slint";
+import { InfoBanner } from "components/InfoBanner.slint";
 import { ListView } from "std-widgets.slint";
 
 export component ImportPage inherits Rectangle {
     in property <[string]> inputs: [];
     in-out property <string> error_message: "";
-    
+
     callback select_zip_files();
     callback select_folders();
     callback remove_input(string);
@@ -17,78 +19,51 @@ export component ImportPage inherits Rectangle {
     VerticalLayout {
         padding: Theme.space_8;
         spacing: Theme.space_6;
-        alignment: start;
+        max-width: Theme.content_max_width;
 
-        // Header Section
-        VerticalLayout {
-            spacing: Theme.space_2;
-            Text {
-                text: "Import Google Photos Takeout Sources";
-                font-size: Theme.text_xl;
-                font-weight: Theme.font_weight_bold;
-                color: Theme.text_primary;
-            }
-            Text {
-                text: "Select ZIP archives or extracted folders containing your Takeout media and JSON sidecars.";
-                font-size: Theme.text_base;
-                color: Theme.text_secondary;
-            }
-            if root.error_message != "": Rectangle {
-                background: Theme.status_error.with-alpha(0.1);
-                border-radius: Theme.radius_md;
-                border-width: 1px;
-                border-color: Theme.status_error;
-                padding: Theme.space_4;
-                HorizontalLayout {
-                    padding: Theme.space_3;
-                    Text {
-                        text: root.error_message;
-                        color: Theme.status_error;
-                        font-size: Theme.text_sm;
-                        font-weight: Theme.font_weight_medium;
-                    }
-                }
-            }
+        PageHeader {
+            eyebrow: "STEP 1 OF 5";
+            title: "Add your Takeout sources";
+            description: "You can mix ZIP archives and extracted folders. Sources are never modified.";
         }
 
-        // Action Target Card
+        if (root.error_message != ""): InfoBanner {
+            title: "Some sources were not added";
+            message: root.error_message;
+            status: "warning";
+        }
+
         UtilityCard {
-            interactive: true;
-            clicked => { root.select_zip_files(); }
-            
             VerticalLayout {
-                padding: Theme.space_8;
+                padding: Theme.space_6;
                 spacing: Theme.space_4;
-                alignment: center;
 
                 Text {
-                    text: "+";
-                    font-size: 36px;
-                    font-weight: 300;
-                    color: Theme.text_secondary;
-                    horizontal-alignment: center;
-                }
-
-                Text {
-                    text: "Add Takeout Archives or Extracted Folders";
+                    text: "Choose what you want to add";
+                    color: Theme.text_primary;
+                    font-family: Theme.font_family;
                     font-size: Theme.text_lg;
                     font-weight: Theme.font_weight_semibold;
-                    color: Theme.text_primary;
-                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "ZIP archives stay compressed until processing. Folders should contain the exported media and JSON sidecars.";
+                    color: Theme.text_secondary;
+                    font-family: Theme.font_family;
+                    font-size: Theme.text_sm;
+                    wrap: word-wrap;
                 }
 
                 HorizontalLayout {
-                    alignment: center;
-                    spacing: Theme.space_4;
-                    
+                    spacing: Theme.space_3;
                     UtilityButton {
-                        text: "Select ZIP Files";
+                        text: "Add ZIP archives";
+                        icon: "+";
                         variant: "primary";
                         clicked => { root.select_zip_files(); }
                     }
-
                     UtilityButton {
-                        text: "Select Folders";
+                        text: "Add extracted folders";
+                        icon: "+";
                         variant: "secondary";
                         clicked => { root.select_folders(); }
                     }
@@ -96,73 +71,77 @@ export component ImportPage inherits Rectangle {
             }
         }
 
-        // Selected Items Header
         HorizontalLayout {
             alignment: space-between;
-            VerticalLayout {
-                alignment: center;
-                Text {
-                    text: "Selected Sources (" + root.inputs.length + ")";
-                    font-size: Theme.text_base;
-                    font-weight: Theme.font_weight_semibold;
-                    color: Theme.text_primary;
-                }
+            Text {
+                text: root.inputs.length == 0 ? "No sources selected" : root.inputs.length + " source" + (root.inputs.length == 1 ? "" : "s") + " selected";
+                color: Theme.text_primary;
+                font-family: Theme.font_family;
+                font-size: Theme.text_lg;
+                font-weight: Theme.font_weight_semibold;
+                vertical-alignment: center;
             }
-            if (root.inputs.length == 0): VerticalLayout {
-                alignment: center;
-                Text {
-                    text: "No sources added yet";
-                    font-size: Theme.text_sm;
-                    color: Theme.text_disabled;
-                }
-            }
-            if (root.inputs.length > 0): VerticalLayout {
-                alignment: center;
-                UtilityButton {
-                    text: "Clear All";
-                    variant: "ghost";
-                    clicked => { root.clear_inputs(); }
-                }
+            if (root.inputs.length > 0): UtilityButton {
+                text: "Clear all";
+                variant: "ghost";
+                clicked => { root.clear_inputs(); }
             }
         }
 
-        // Selected Items List
         Rectangle {
             vertical-stretch: 1;
+            min-height: 160px;
+            background: Theme.bg_surface;
             border-radius: Theme.radius_md;
             border-width: 1px;
             border-color: Theme.border_subtle;
-            background: Theme.bg_surface;
+            clip: true;
 
-            ListView {
+            if (root.inputs.length == 0): VerticalLayout {
+                alignment: center;
+                spacing: Theme.space_2;
+                Text { text: "Your selected archives and folders will appear here."; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_base; font-weight: Theme.font_weight_medium; horizontal-alignment: center; }
+                Text { text: "Use the two buttons above to add one or more sources."; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_sm; horizontal-alignment: center; }
+            }
+
+            if (root.inputs.length > 0): ListView {
                 for path in root.inputs: Rectangle {
-                    height: 48px;
+                    height: 60px;
+                    background: ta.has-hover ? Theme.bg_hover : transparent;
+
+                    ta := TouchArea { }
 
                     HorizontalLayout {
                         padding-left: Theme.space_4;
-                        padding-right: Theme.space_2;
-                        alignment: space-between;
+                        padding-right: Theme.space_3;
                         spacing: Theme.space_3;
 
-                        VerticalLayout {
-                            alignment: center;
+                        Rectangle {
+                            width: 32px;
+                            height: 24px;
+                            border-radius: Theme.radius_sm;
+                            background: Theme.accent_soft;
+                            border-width: 1px;
+                            border-color: Theme.accent_primary.with-alpha(0.3);
                             Text {
-                                text: path;
-                                font-size: Theme.text_sm;
-                                color: Theme.text_primary;
-                                overflow: elide;
+                                text: "SRC";
+                                color: Theme.accent_primary;
+                                font-family: Theme.font_family;
+                                font-size: Theme.text_xs;
+                                font-weight: Theme.font_weight_bold;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                         }
-
                         VerticalLayout {
                             alignment: center;
-                            UtilityButton {
-                                text: "Remove";
-                                variant: "ghost";
-                                clicked => { root.remove_input(path); }
-                            }
+                            Text { text: path; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_sm; font-weight: Theme.font_weight_medium; overflow: elide; }
+                            Text { text: "Ready to restore"; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_xs; }
                         }
+                        UtilityButton { text: "Remove"; variant: "ghost"; clicked => { root.remove_input(path); } }
                     }
+
+                    Rectangle { y: parent.height - 1px; width: 100%; height: 1px; background: Theme.border_subtle; }
                 }
             }
         }

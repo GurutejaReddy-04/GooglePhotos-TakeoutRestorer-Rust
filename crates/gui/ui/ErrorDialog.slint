@@ -18,9 +18,9 @@ export component ErrorDialog inherits Rectangle {
             VerticalLayout {
                 alignment: center;
                 
-                UtilityCard {
-                    width: 500px;
-                    is_warning: true; // Highlights with a subtle warning/error border
+                    UtilityCard {
+                        width: 500px;
+                    is_warning: true;
                     
                     VerticalLayout {
                         padding: Theme.space_8;
@@ -28,10 +28,11 @@ export component ErrorDialog inherits Rectangle {
                         alignment: center;
 
                         Text {
-                            text: "⚠️ Fatal Application Error";
+                            text: "The restore encountered a fatal error";
                             font-size: Theme.text_xl;
                             font-weight: Theme.font_weight_bold;
                             color: Theme.status_error;
+                            font-family: Theme.font_family;
                             horizontal-alignment: center;
                         }
 
@@ -39,6 +40,7 @@ export component ErrorDialog inherits Rectangle {
                             text: root.error_message;
                             font-size: Theme.text_sm;
                             color: Theme.text_primary;
+                            font-family: Theme.font_family;
                             wrap: word-wrap;
                             horizontal-alignment: center;
                         }

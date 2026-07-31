@@ -11,7 +11,7 @@ export component UtilityButton {
 
     property <bool> has_focus: focus_scope.has-focus;
 
-    min-height: 28px; // Dense height
+    min-height: Theme.control_height;
     min-width: 60px;
     
     in property <bool> flex_width: false;
@@ -27,16 +27,16 @@ export component UtilityButton {
         }
         primary when root.variant == "primary": {
             bg.background: touch.pressed ? Theme.accent_primary_disabled : (touch.has-hover ? Theme.accent_primary_hover : Theme.accent_primary);
-            txt.color: Theme.text_inverted;
-            icon-txt.color: Theme.text_inverted;
+            txt.color: Theme.text_on_accent;
+            icon-txt.color: Theme.text_on_accent;
             bg.border-color: transparent;
         }
         danger when root.variant == "danger": {
             bg.background: touch.pressed ? Theme.status_error : (touch.has-hover ? Theme.status_error : Theme.status_error);
             // We adjust opacity/color on hover in a real app, for simplicity we just use error
             bg.background: touch.has-hover ? Theme.status_error.brighter(0.2) : Theme.status_error;
-            txt.color: Theme.text_inverted;
-            icon-txt.color: Theme.text_inverted;
+            txt.color: Theme.text_on_danger;
+            icon-txt.color: Theme.text_on_danger;
             bg.border-color: transparent;
         }
         ghost when root.variant == "ghost": {
@@ -55,10 +55,12 @@ export component UtilityButton {
     ]
 
     bg := Rectangle {
-        border-radius: Theme.radius_sm;
-        border-width: 1px;
+        border-radius: Theme.radius_md;
+        border-width: root.has_focus ? 2px : 1px;
+        border-color: root.has_focus ? Theme.border_focus : (root.variant == "secondary" ? Theme.border_subtle : transparent);
         
         animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+        animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
         
         HorizontalLayout {
             padding-left: Theme.space_3;
@@ -79,19 +81,10 @@ export component UtilityButton {
                 text: root.text;
                 font-size: Theme.text_base;
                 font-weight: Theme.font_weight_semibold;
+                font-family: Theme.font_family;
                 vertical-alignment: center;
                 color: Theme.text_primary; // Overridden by states
             }
-        }
-        
-        // Focus ring
-        if root.has_focus: Rectangle {
-            x: -2px; y: -2px;
-            width: parent.width + 4px;
-            height: parent.height + 4px;
-            border-width: 2px;
-            border-color: Theme.border_focus;
-            border-radius: Theme.radius_sm + 2px;
         }
     }
 

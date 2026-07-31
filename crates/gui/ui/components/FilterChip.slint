@@ -1,0 +1,63 @@
+import { Theme } from "Theme.slint";
+
+export component FilterChip inherits Rectangle {
+    in property <string> text: "";
+    in property <bool> selected: false;
+    in property <bool> enabled: true;
+    in property <int> count: -1;
+
+    callback clicked();
+
+    height: 28px;
+    background: !root.enabled ? Theme.bg_subtle :
+                (root.selected ? Theme.accent_primary :
+                (touch.has-hover ? Theme.bg_hover : Theme.bg_surface));
+    border-radius: Theme.radius_md;
+    border-width: 1px;
+    border-color: root.selected && root.enabled ? Theme.accent_primary : Theme.border_subtle;
+
+    animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    forward-focus: focus_scope;
+    focus_scope := FocusScope {
+        key-pressed(e) => {
+            if (root.enabled && (e.text == " " || e.text == "\n")) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space_3;
+        padding-right: Theme.space_3;
+        spacing: Theme.space_1;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: !root.enabled ? Theme.text_disabled :
+                   (root.selected ? Theme.text_on_accent : Theme.text_primary);
+            font-family: Theme.font_family;
+            font-size: Theme.text_xs;
+            font-weight: root.selected ? Theme.font_weight_semibold : Theme.font_weight_medium;
+            vertical-alignment: center;
+        }
+
+        if (root.count >= 0): Text {
+            text: "(" + root.count + ")";
+            color: !root.enabled ? Theme.text_disabled :
+                   (root.selected ? Theme.text_on_accent.with-alpha(0.8) : Theme.text_secondary);
+            font-family: Theme.font_family;
+            font-size: Theme.text_xs;
+            vertical-alignment: center;
+        }
+    }
+}

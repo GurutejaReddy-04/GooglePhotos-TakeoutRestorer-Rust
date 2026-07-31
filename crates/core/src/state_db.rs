@@ -376,13 +376,17 @@ impl StateDatabase {
             Self::writer_loop(writer_conn, rx, is_broken_writer, writer_db_dir);
         });
 
-        Ok(Arc::new(Self {
+        let db = Arc::new(Self {
             conn,
             writer_tx: tx,
             writer_handle: Some(writer_handle),
             is_broken,
             db_dir,
-        }))
+        });
+
+        db.recover_interrupted_processing()?;
+
+        Ok(db)
     }
 
     fn apply_schema(conn: &mut Connection) -> Result<(), AppError> {
@@ -809,6 +813,25 @@ impl StateDatabase {
         Ok(res)
     }
 
+    pub fn get_total_media_count(&self) -> Result<u64, AppError> {
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let processable: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM media_files WHERE status IN (3, 5, 6, 7)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if processable > 0 {
+            Ok(processable as u64)
+        } else {
+            let total: i64 = conn
+                .query_row("SELECT COUNT(*) FROM media_files", [], |r| r.get(0))
+                .unwrap_or(0);
+            Ok(total as u64)
+        }
+    }
+
     pub fn apply_match_batch(&self, results: &[MatchResult]) -> Result<(), AppError> {
         let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let tx = conn.transaction()?;
@@ -864,8 +887,35 @@ impl StateDatabase {
         Ok(updated == 1)
     }
 
+    pub fn recover_interrupted_processing(&self) -> Result<usize, AppError> {
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let updated = conn.execute(
+            "UPDATE media_files 
+             SET status = CASE 
+                 WHEN match_confidence = 100 THEN ?1 
+                 WHEN match_confidence IS NOT NULL AND match_confidence > 0 THEN ?2 
+                 ELSE ?3 
+             END 
+             WHERE status = ?4",
+            params![
+                FileStatus::Matched as u8,
+                FileStatus::MatchedLowConfidence as u8,
+                FileStatus::Unmatched as u8,
+                FileStatus::Processing as u8,
+            ],
+        )?;
+        if updated > 0 {
+            tracing::info!(
+                "Recovered {} files from interrupted Processing state",
+                updated
+            );
+        }
+        Ok(updated)
+    }
+
     pub fn enqueue_status_update(&self, update: StatusUpdate) -> Result<(), AppError> {
-        if self.is_broken.load(std::sync::atomic::Ordering::SeqCst) {
+        let is_term = matches!(update, StatusUpdate::Terminate);
+        if !is_term && self.is_broken.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(AppError::State(
                 "State database is permanently broken".into(),
             ));
@@ -967,15 +1017,42 @@ pub fn get_recent_runs(db_dir: &Path) -> Vec<RecentRun> {
         for path in paths {
             if let Ok(conn) = Connection::open(&path) {
                 // Ignore errors inside loop so we don't abort on one bad DB
-                let mut title = "Unfinished Restore Session".to_string();
+                let mut title = "Takeout Restoration".to_string();
+                let mut is_inplace = false;
+
                 if let Ok(mut stmt) =
+                    conn.prepare("SELECT value FROM run_config WHERE key = 'contract_processing'")
+                {
+                    if let Ok(mut rows) = stmt.query([]) {
+                        if let Ok(Some(row)) = rows.next() {
+                            if let Ok(proc_str) = row.get::<_, String>(0) {
+                                if proc_str.contains("in-place") || proc_str.contains("InPlace") {
+                                    is_inplace = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if is_inplace {
+                    title = "Takeout Restoration (In-Place)".to_string();
+                } else if let Ok(mut stmt) =
                     conn.prepare("SELECT value FROM run_config WHERE key = 'destination'")
                 {
                     if let Ok(mut rows) = stmt.query([]) {
                         if let Ok(Some(row)) = rows.next() {
                             if let Ok(dest_str) = row.get::<_, String>(0) {
-                                if let Some(dest_name) = PathBuf::from(dest_str).file_name() {
-                                    title = format!("Restore to '{}'", dest_name.to_string_lossy());
+                                let dest_path = PathBuf::from(&dest_str);
+                                if let Some(dest_name) = dest_path.file_name() {
+                                    let name = dest_name.to_string_lossy();
+                                    if name.starts_with('.')
+                                        || name.contains("tmp")
+                                        || name.contains("Tmp")
+                                    {
+                                        title = "Takeout Restoration".to_string();
+                                    } else {
+                                        title = format!("Restore to '{}'", name);
+                                    }
                                 }
                             }
                         }
@@ -1487,5 +1564,89 @@ mod tests {
 
         // 7. Verify applying recovery again is a no-op.
         db2.apply_recovery_data().unwrap(); // Should just return Ok(()) silently
+    }
+
+    #[test]
+    fn test_state_machine_transitions_and_enforcement() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_fsm.db");
+        let db = StateDatabase::open(&db_path).unwrap();
+
+        let files = vec![MediaFileInsert {
+            path: FilePath::Real {
+                base_components: 0,
+                abs: PathBuf::from("fsm.jpg"),
+            },
+            filename: "fsm.jpg".to_string(),
+            extension: ".jpg".to_string(),
+            size: 500,
+        }];
+        db.insert_media_batch(&files).unwrap();
+
+        let pending = db.load_pending_media_batch(None, 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        let id = pending[0].id;
+        assert_eq!(pending[0].status, FileStatus::Pending);
+
+        // 1. Pending cannot be claimed directly before matching
+        let marked_from_pending = db.try_mark_processing(id).unwrap();
+        assert!(
+            !marked_from_pending,
+            "Cannot transition directly from Pending to Processing"
+        );
+
+        // 2. Perform match batch (Pending -> Matched)
+        let results = vec![crate::state_db::MatchResult {
+            id,
+            json_path: None,
+            match_confidence: Some(100),
+            match_tier: Some(1),
+            status: FileStatus::Matched,
+        }];
+        db.apply_match_batch(&results).unwrap();
+
+        // 3. Matched can be claimed (Matched -> Processing)
+        let marked_from_matched = db.try_mark_processing(id).unwrap();
+        assert!(
+            marked_from_matched,
+            "Must transition from Matched to Processing"
+        );
+
+        // 4. Double claim fails (Processing -> Processing invalid)
+        let double_claim = db.try_mark_processing(id).unwrap();
+        assert!(!double_claim, "Cannot claim an already processing file");
+
+        // 5. Complete processing (Processing -> Completed via writer)
+        db.enqueue_status_update(StatusUpdate::Completed(id))
+            .unwrap();
+        db.flush().unwrap();
+
+        // 6. Terminal state cannot be claimed again (Completed -> Processing invalid)
+        let claim_completed = db.try_mark_processing(id).unwrap();
+        assert!(
+            !claim_completed,
+            "Cannot claim a file in terminal Completed status"
+        );
+    }
+
+    #[test]
+    fn test_p0_006_dormant_writer_allows_terminate_and_joins_cleanly() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test_dormant_shutdown.db");
+        let db = StateDatabase::open(&db_path).unwrap();
+
+        // Simulate database persistent failure by setting is_broken = true
+        db.is_broken
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+
+        // StatusUpdate::Terminate must bypass the is_broken check
+        let term_res = db.enqueue_status_update(StatusUpdate::Terminate);
+        assert!(
+            term_res.is_ok(),
+            "StatusUpdate::Terminate must succeed even when database is marked broken"
+        );
+
+        // Dropping StateDatabase should now join writer_handle immediately without hanging!
+        drop(db);
     }
 }

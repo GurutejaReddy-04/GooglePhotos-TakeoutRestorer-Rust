@@ -36,6 +36,7 @@ pub struct SettingsSnapshot {
     pub output_mode: String,
     pub high_performance: bool,
     pub theme: String,
+    pub sidebar_width: u32,
 }
 
 impl Default for SettingsSnapshot {
@@ -50,6 +51,7 @@ impl Default for SettingsSnapshot {
             output_mode: "copy".to_string(),
             high_performance: false,
             theme: "System".to_string(),
+            sidebar_width: 340,
         }
     }
 }
@@ -90,11 +92,12 @@ pub struct ProcessingSnapshot {
     pub is_finished: bool,
     pub is_paused: bool,
     pub is_processing: bool,
+    pub terminal_state: String,
+    pub fatal_error_message: String,
 
     pub recent_runs: Vec<RecentRun>,
     pub settings: SettingsSnapshot,
     pub results: Vec<FileResult>,
-    pub live_logs: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -129,10 +132,11 @@ impl Default for ProcessingSnapshot {
             is_finished: false,
             is_paused: false,
             is_processing: false,
+            terminal_state: "idle".to_string(),
+            fatal_error_message: String::new(),
             recent_runs: Vec::new(),
             settings: SettingsSnapshot::default(),
             results: Vec::new(),
-            live_logs: Vec::new(),
         }
     }
 }
@@ -163,8 +167,8 @@ pub struct ProcessingViewModelBuilder {
     pub is_finished: bool,
     pub is_paused: bool,
     pub is_processing: bool,
-
-    pub live_logs: std::collections::VecDeque<String>,
+    pub terminal_state: String,
+    pub fatal_error_message: String,
     pub last_snapshot_time: Option<std::time::Instant>,
     pub last_completed_files: usize,
     pub ema_speed: Option<f64>,
@@ -200,7 +204,8 @@ impl ProcessingViewModelBuilder {
             is_finished: false,
             is_paused: false,
             is_processing: false,
-            live_logs: std::collections::VecDeque::with_capacity(100),
+            terminal_state: "idle".to_string(),
+            fatal_error_message: String::new(),
             last_snapshot_time: None,
             last_completed_files: 0,
             ema_speed: None,
@@ -225,12 +230,17 @@ impl ProcessingViewModelBuilder {
             AppEvent::ProcessingPhaseStarted { name, total_files } => {
                 self.is_processing = true;
                 self.is_finished = false;
+                if name.starts_with("Restoring") && self.start_time.is_none() {
+                    self.completed_files = 0;
+                }
                 self.current_phase_text = name;
+                self.terminal_state = "running".to_string();
+                self.fatal_error_message.clear();
                 if self.start_time.is_none() {
                     self.start_time = Some(std::time::Instant::now());
                 }
                 if let Some(t) = total_files {
-                    self.total_files = t as usize;
+                    self.total_files = (t as usize).max(self.total_files);
                 }
             }
             AppEvent::FileProcessed {
@@ -239,10 +249,13 @@ impl ProcessingViewModelBuilder {
                 bytes_written,
             } => {
                 self.completed_files += 1;
+                self.total_files = self.total_files.max(self.completed_files);
                 self.output_bytes += bytes_written;
                 self.current_filename = format!("File ID: {}", file_id);
                 match status {
-                    FileStatus::Completed => self.ok_count += 1,
+                    FileStatus::Completed => {
+                        self.ok_count += 1;
+                    }
                     FileStatus::Error => {
                         self.has_errors = true;
                         self.error_count += 1;
@@ -251,24 +264,23 @@ impl ProcessingViewModelBuilder {
                     FileStatus::Unmatched => self.unmatched_count += 1,
                     _ => {}
                 }
+                let total_done =
+                    self.ok_count + self.error_count + self.skipped_count + self.unmatched_count;
+                self.completed_files = total_done.min(self.total_files);
             }
-            AppEvent::Warning { message, .. } => {
+            AppEvent::Warning { .. } => {
                 self.has_errors = true;
-                self.error_count += 1;
-                self.live_logs.push_front(format!("[WARNING] {}", message));
-                if self.live_logs.len() > 100 {
-                    self.live_logs.pop_back();
-                }
+                self.terminal_state = "completed_with_issues".to_string();
             }
             AppEvent::Error { fatal, message, .. } => {
                 self.has_errors = true;
-                self.error_count += 1;
-                self.live_logs.push_front(format!("[ERROR] {}", message));
-                if self.live_logs.len() > 100 {
-                    self.live_logs.pop_back();
-                }
+                self.terminal_state = "failed".to_string();
                 if fatal {
                     self.is_processing = false;
+                    self.is_finished = true;
+                    self.current_phase_text = "Failed".to_string();
+                    self.terminal_state = "failed".to_string();
+                    self.fatal_error_message = message;
                 }
             }
             AppEvent::ProgressStats {
@@ -277,8 +289,14 @@ impl ProcessingViewModelBuilder {
                 eta_seconds: _,
                 speed_bps: _,
             } => {
-                self.completed_files = completed as usize;
-                self.total_files = total as usize;
+                let grand = (total as usize)
+                    .max(completed as usize)
+                    .max(self.total_files);
+                self.total_files = grand;
+                let total_done =
+                    self.ok_count + self.error_count + self.skipped_count + self.unmatched_count;
+                let cnt = (completed as usize).max(total_done);
+                self.completed_files = cnt.min(self.total_files);
             }
             AppEvent::RecentRunsLoaded(runs) => {
                 self.recent_runs = runs;
@@ -296,8 +314,10 @@ impl ProcessingViewModelBuilder {
 
                 self.settings.high_performance = config.processing.high_performance;
                 self.settings.theme = config.ui.theme.clone();
+                self.settings.sidebar_width = config.ui.sidebar_width;
             }
             AppEvent::DestinationValidated(res) => {
+                self.settings.destination_path = Some(res.path.to_string_lossy().to_string());
                 let msg = res.message.clone();
                 let free_gb = res.free_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
                 let total_gb = res.total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
@@ -328,7 +348,15 @@ impl ProcessingViewModelBuilder {
             AppEvent::RunCompleted { results } => {
                 self.is_processing = false;
                 self.is_finished = true;
-                self.current_phase_text = "Finished".to_string();
+                self.completed_files = self.total_files;
+                if self.terminal_state != "failed" {
+                    self.current_phase_text = "Finished".to_string();
+                    self.terminal_state = if self.has_errors {
+                        "completed_with_issues".to_string()
+                    } else {
+                        "completed".to_string()
+                    };
+                }
 
                 let mut image_cnt = 0;
                 let mut video_cnt = 0;
@@ -392,6 +420,7 @@ impl ProcessingViewModelBuilder {
                 self.is_processing = false;
                 self.is_finished = true;
                 self.current_phase_text = "Cancelled".to_string();
+                self.terminal_state = "cancelled".to_string();
             }
             AppEvent::ResultsFilterChanged {
                 search,
@@ -426,15 +455,15 @@ impl ProcessingViewModelBuilder {
     pub fn build_snapshot(&mut self) -> ProcessingSnapshot {
         self.sequence_number += 1;
 
-        let percentage = if self.total_files > 0 {
-            (self.completed_files as f64 / self.total_files as f64) * 100.0
+        let grand_total = self.total_files.max(self.completed_files);
+        let percentage = if grand_total > 0 {
+            ((self.completed_files as f64 / grand_total as f64) * 100.0).min(100.0)
         } else {
             0.0
         };
 
-        let is_meaningful_progress = self.total_files > 0
-            && !self.current_phase_text.contains("Initializing")
-            && !self.current_phase_text.contains("Scanning");
+        let is_meaningful_progress =
+            self.total_files > 0 && !self.current_phase_text.contains("Initializing");
         let formatted_progress = if is_meaningful_progress {
             format!("{:.1}%", percentage)
         } else {
@@ -528,10 +557,11 @@ impl ProcessingViewModelBuilder {
             is_finished: self.is_finished,
             is_paused: self.is_paused,
             is_processing: self.is_processing,
+            terminal_state: self.terminal_state.clone(),
+            fatal_error_message: self.fatal_error_message.clone(),
             recent_runs: self.recent_runs.clone(),
             settings: self.settings.clone(),
             results: filtered_results,
-            live_logs: self.live_logs.iter().cloned().collect(),
         }
     }
 }
@@ -554,5 +584,41 @@ fn format_time(seconds: u64) -> String {
         format!("{}m {}s", m, s)
     } else {
         format!("{}s", s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessingViewModelBuilder;
+    use core::events::AppEvent;
+
+    #[test]
+    fn fatal_errors_remain_failed_after_the_terminal_event() {
+        let mut builder = ProcessingViewModelBuilder::new();
+        builder.apply_event(AppEvent::Error {
+            file_id: None,
+            fatal: true,
+            message: "ExifTool could not start".to_string(),
+        });
+        builder.apply_event(AppEvent::RunCompleted {
+            results: Vec::new(),
+        });
+
+        let snapshot = builder.build_snapshot();
+        assert!(snapshot.is_finished);
+        assert_eq!(snapshot.terminal_state, "failed");
+        assert_eq!(snapshot.current_phase_text, "Failed");
+        assert_eq!(snapshot.fatal_error_message, "ExifTool could not start");
+    }
+
+    #[test]
+    fn cancelled_runs_have_a_distinct_terminal_state() {
+        let mut builder = ProcessingViewModelBuilder::new();
+        builder.apply_event(AppEvent::CancellationAcknowledged);
+
+        let snapshot = builder.build_snapshot();
+        assert!(snapshot.is_finished);
+        assert_eq!(snapshot.terminal_state, "cancelled");
+        assert_eq!(snapshot.current_phase_text, "Cancelled");
     }
 }

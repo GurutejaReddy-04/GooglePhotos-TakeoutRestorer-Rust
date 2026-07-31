@@ -1,6 +1,5 @@
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub fn ensure_small_dataset() -> PathBuf {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/small_dataset");
@@ -62,34 +61,6 @@ pub fn ensure_small_dataset() -> PathBuf {
             r#"{{
             "title": "{}",
             "creationTime": {{ "timestamp": "1620000000" }},
-            "photoTakenTime": {{ "timestamp": "1620000000" }}
-        }}"#,
-            name
-        );
-        fs::write(&json_path, json).unwrap();
-    }
-
-    path
-}
-
-pub fn ensure_medium_dataset() -> PathBuf {
-    let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/medium_dataset");
-    if path.exists() {
-        return path;
-    }
-    fs::create_dir_all(&path).unwrap();
-
-    for i in 1..=2000 {
-        let name = format!("IMG_{:04}.JPG", i);
-        let file_path = path.join(&name);
-        fs::write(&file_path, b"fake_jpeg_content").unwrap();
-
-        let json_name = format!("{}.json", name);
-        let json_path = path.join(&json_name);
-        let json = format!(
-            r#"{{
-            "title": "{}",
             "photoTakenTime": {{ "timestamp": "1620000000" }}
         }}"#,
             name

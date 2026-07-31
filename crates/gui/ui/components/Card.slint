@@ -1,0 +1,27 @@
+import { Theme } from "Theme.slint";
+
+export component Card inherits Rectangle {
+    in property <bool> interactive: false;
+    in property <bool> is_warning: false;
+    in property <bool> is_accent: false;
+    
+    callback clicked();
+
+    background: root.interactive && touch.has-hover ? Theme.bg_hover : Theme.bg_surface;
+    border-radius: Theme.radius_md;
+    border-width: root.is_warning || root.is_accent ? 1px : 0px;
+    border-color: root.is_warning ? Theme.status_warning.with-alpha(0.6) :
+                 (root.is_accent ? Theme.accent_primary.with-alpha(0.5) : transparent);
+                 
+    drop-shadow-blur: 4px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: Theme.is_dark_mode ? #00000040 : #00000010;
+
+    animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    touch := TouchArea {
+        enabled: root.interactive;
+        mouse-cursor: root.interactive ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}

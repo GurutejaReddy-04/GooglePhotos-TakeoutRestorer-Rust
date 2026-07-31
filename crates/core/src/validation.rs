@@ -23,6 +23,7 @@ pub enum DestinationValidationKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DestinationValidationResult {
+    pub path: PathBuf,
     pub kind: DestinationValidationKind,
     pub free_bytes: u64,
     pub total_bytes: u64,
@@ -32,6 +33,7 @@ pub struct DestinationValidationResult {
 
 pub fn validate_destination(dest: &Path, inputs: &[PathBuf]) -> DestinationValidationResult {
     let mut result = DestinationValidationResult {
+        path: dest.to_path_buf(),
         kind: DestinationValidationKind::Valid,
         free_bytes: 0,
         total_bytes: 0,

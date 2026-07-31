@@ -1,0 +1,66 @@
+import { Theme } from "Theme.slint";
+
+export component MetricTile inherits Rectangle {
+    in property <string> label: "";
+    in property <string> value: "";
+    in property <string> status: "normal"; // "normal", "success", "warning", "error"
+    in property <string> subtext: "";
+
+    height: 70px;
+    background: Theme.bg_surface;
+    border-radius: Theme.radius_md;
+    border-width: 1px;
+    border-color: root.status == "error" ? Theme.status_error.with-alpha(0.5) :
+                 (root.status == "warning" ? Theme.status_warning.with-alpha(0.5) :
+                 (root.status == "success" ? Theme.status_success.with-alpha(0.5) : Theme.border_subtle));
+
+    VerticalLayout {
+        padding-left: Theme.space_3;
+        padding-right: Theme.space_3;
+        padding-top: Theme.space_2;
+        padding-bottom: Theme.space_2;
+        spacing: 2px;
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: space-between;
+            Text {
+                text: root.label;
+                color: Theme.text_secondary;
+                font-family: Theme.font_family;
+                font-size: 10px;
+                font-weight: Theme.font_weight_bold;
+                overflow: elide;
+            }
+
+            Rectangle {
+                width: 6px;
+                height: 6px;
+                border-radius: Theme.radius_full;
+                background: root.status == "error" ? Theme.status_error :
+                            (root.status == "warning" ? Theme.status_warning :
+                            (root.status == "success" ? Theme.status_success : Theme.accent_primary));
+                y: 3px;
+            }
+        }
+
+        Text {
+            text: root.value;
+            color: root.status == "error" ? Theme.status_error :
+                   (root.status == "warning" ? Theme.status_warning :
+                   (root.status == "success" ? Theme.status_success : Theme.text_primary));
+            font-family: Theme.font_family;
+            font-size: Theme.text_lg;
+            font-weight: Theme.font_weight_bold;
+            overflow: elide;
+        }
+
+        if (root.subtext != ""): Text {
+            text: root.subtext;
+            color: Theme.text_secondary;
+            font-family: Theme.font_family;
+            font-size: 10px;
+            overflow: elide;
+        }
+    }
+}

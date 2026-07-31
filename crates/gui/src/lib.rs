@@ -3,8 +3,8 @@ slint::include_modules!();
 pub mod bindings;
 pub mod window_state;
 
-use std::sync::Arc;
 
+use std::sync::Arc;
 use std::thread;
 
 use rfd::FileDialog;
@@ -17,29 +17,40 @@ use crate::window_state::WindowState;
 pub struct GuiRunner {
     dispatcher: Arc<dyn CommandDispatcher + Send + Sync>,
     snapshot_rx: shared_ui::watch::Receiver<CoreProcessingSnapshot>,
+    startup_theme: String,
 }
 
 impl GuiRunner {
     pub fn new(
         dispatcher: Arc<dyn CommandDispatcher + Send + Sync>,
         snapshot_rx: shared_ui::watch::Receiver<CoreProcessingSnapshot>,
+        startup_theme: String,
     ) -> Self {
         Self {
             dispatcher,
             snapshot_rx,
+            startup_theme,
         }
     }
 
     pub fn run(&self) -> Result<(), slint::PlatformError> {
         let ui = MainWindow::new()?;
+        ui.global::<Theme>()
+            .set_preference(normalize_theme_preference(&self.startup_theme).into());
+        ui.global::<Theme>()
+            .set_prefers_reduced_motion(prefers_reduced_motion());
+        ui.set_os_platform(std::env::consts::OS.into());
         let ui_handle = ui.as_weak();
 
         let state = WindowState::load();
-        ui.window()
-            .set_size(slint::LogicalSize::new(state.width, state.height));
-        ui.window().set_position(
-            slint::LogicalPosition::new(state.x, state.y).to_physical(ui.window().scale_factor()),
-        );
+        ui.window().set_size(slint::LogicalSize::new(
+            state.width.max(800.0),
+            state.height.max(600.0),
+        ));
+        if state.x >= 0.0 && state.y >= 0.0 && state.x < 3000.0 && state.y < 2000.0 {
+            ui.window()
+                .set_position(slint::LogicalPosition::new(state.x, state.y));
+        }
         if state.is_maximized {
             ui.window().set_maximized(true);
         }
@@ -54,6 +65,7 @@ impl GuiRunner {
         let ui_handle_next = ui.as_weak();
         ui.on_go_next(move || {
             if let Some(ui) = ui_handle_next.upgrade() {
+                ui.set_action_feedback("".into());
                 let mut step = ui.get_current_step();
                 if step < 5 {
                     step += 1;
@@ -66,6 +78,7 @@ impl GuiRunner {
         ui.on_go_back(move || {
             if let Some(ui) = ui_handle_back.upgrade() {
                 if !ui.get_processing().is_processing {
+                    ui.set_action_feedback("".into());
                     let mut step = ui.get_current_step();
                     if step > 0 {
                         step -= 1;
@@ -78,23 +91,27 @@ impl GuiRunner {
         let dispatcher = Arc::clone(&self.dispatcher);
         ui.on_shutdown_requested(move || {
             let _ = dispatcher.dispatch(UiCommand::Shutdown);
+            let _ = slint::quit_event_loop();
         });
 
         let dispatcher_theme = self.dispatcher.clone();
         let ui_handle_theme = ui.as_weak();
         ui.on_change_theme(move |theme_str| {
-            let theme_val = theme_str.to_string();
-            let _ = dispatcher_theme.dispatch(UiCommand::UpdateSetting {
+            let theme_val = normalize_theme_preference(&theme_str).to_string();
+            let result = dispatcher_theme.dispatch(UiCommand::UpdateSetting {
                 key: "theme".to_string(),
                 value: theme_val.clone(),
             });
             if let Some(ui) = ui_handle_theme.upgrade() {
-                let is_dark = match theme_val.as_str() {
-                    "Light" => false,
-                    "Dark" => true,
-                    _ => detect_system_dark_mode(),
-                };
-                ui.global::<Theme>().set_is_dark_mode(is_dark);
+                match result {
+                    Ok(()) => ui.global::<Theme>().set_preference(theme_val.into()),
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not update appearance preference: {error}").into(),
+                        );
+                    }
+                }
             }
         });
 
@@ -245,28 +262,85 @@ impl GuiRunner {
             }
         });
 
+
+
         // Welcome Page Actions (Sprint 2)
         let ui_handle_resume = ui.as_weak();
         let dispatcher_resume = self.dispatcher.clone();
         ui.on_resume_run_clicked(move |id| {
-            if let Some(_ui) = ui_handle_resume.upgrade() {
-                let _ = dispatcher_resume.dispatch(UiCommand::ResumeRun(id.to_string()));
+            if let Some(ui) = ui_handle_resume.upgrade() {
+                match dispatcher_resume.dispatch(UiCommand::ResumeRun(id.to_string())) {
+                    Ok(()) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback("Resuming saved session…".into());
+                        ui.set_active_tab(1);
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not resume saved session: {error}").into(),
+                        );
+                    }
+                }
             }
         });
 
         let ui_handle_delete = ui.as_weak();
         let dispatcher_delete = self.dispatcher.clone();
-        ui.on_delete_run_clicked(move |id| {
-            if let Some(_ui) = ui_handle_delete.upgrade() {
-                let _ = dispatcher_delete.dispatch(UiCommand::DeleteRun(id.to_string()));
+        ui.on_delete_run_confirmed(move |id| {
+            if let Some(ui) = ui_handle_delete.upgrade() {
+                match dispatcher_delete.dispatch(UiCommand::DeleteRun(id.to_string())) {
+                    Ok(()) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback("Saved session deleted.".into());
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not delete saved session: {error}").into(),
+                        );
+                    }
+                }
+            }
+        });
+
+        let ui_handle_clear_all = ui.as_weak();
+        let dispatcher_clear_all = self.dispatcher.clone();
+        ui.on_clear_all_runs_confirmed(move || {
+            if let Some(ui) = ui_handle_clear_all.upgrade() {
+                match dispatcher_clear_all.dispatch(UiCommand::ClearAllRuns) {
+                    Ok(()) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback("All restore history cleared.".into());
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not clear restore history: {error}").into(),
+                        );
+                    }
+                }
             }
         });
 
         let ui_handle_recover = ui.as_weak();
         let dispatcher_recover = self.dispatcher.clone();
         ui.on_recover_run_clicked(move |id| {
-            if let Some(_ui) = ui_handle_recover.upgrade() {
-                let _ = dispatcher_recover.dispatch(UiCommand::RecoverRun(id.to_string()));
+            if let Some(ui) = ui_handle_recover.upgrade() {
+                match dispatcher_recover.dispatch(UiCommand::RecoverRun(id.to_string())) {
+                    Ok(()) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback(
+                            "Recovery data applied. Resume the session when you are ready.".into(),
+                        );
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not recover saved session: {error}").into(),
+                        );
+                    }
+                }
             }
         });
 
@@ -279,8 +353,27 @@ impl GuiRunner {
             }
         });
 
+        let ui_handle_setting = ui.as_weak();
         let dispatcher_setting = self.dispatcher.clone();
         ui.on_update_setting(move |k, v| {
+            if let Some(ui) = ui_handle_setting.upgrade() {
+                let mut settings = ui.get_settings();
+                match k.as_str() {
+                    "gps_enabled" => settings.gps_enabled = v == "true",
+                    "timezone_enabled" => settings.timezone_enabled = v == "true",
+                    "unmatched_enabled" => settings.unmatched_enabled = v == "true",
+                    "high_performance" => settings.high_performance = v == "true",
+                    "anonymous_logging" => settings.anonymous_logging = v == "true",
+                    "output_mode" => settings.output_mode = v.clone(),
+                    "sidebar_width" => {
+                        if let Ok(width) = v.parse::<i32>() {
+                            settings.sidebar_width = width;
+                        }
+                    }
+                    _ => {}
+                }
+                ui.set_settings(settings);
+            }
             let _ = dispatcher_setting.dispatch(UiCommand::UpdateSetting {
                 key: k.to_string(),
                 value: v.to_string(),
@@ -288,8 +381,12 @@ impl GuiRunner {
         });
 
         let dispatcher_start = self.dispatcher.clone();
+        let ui_handle_start = ui.as_weak();
         ui.on_start_processing(move || {
             let _ = dispatcher_start.dispatch(UiCommand::StartProcessing);
+            if let Some(ui) = ui_handle_start.upgrade() {
+                ui.set_active_tab(1);
+            }
         });
 
         let dispatcher_stop = self.dispatcher.clone();
@@ -305,7 +402,7 @@ impl GuiRunner {
                 ui.set_inputs(slint::ModelRc::from(std::rc::Rc::new(
                     slint::VecModel::from(Vec::<slint::SharedString>::new()),
                 )));
-                ui.set_current_step(0); // Go back to Welcome page
+                ui.set_active_tab(0);
             }
         });
 
@@ -315,33 +412,46 @@ impl GuiRunner {
                 let dest = ui.get_settings().destination_path;
                 let dest_str = dest.to_string();
 
+                if dest_str.is_empty() {
+                    ui.set_action_feedback_is_error(true);
+                    ui.set_action_feedback("No output folder is available for this run.".into());
+                    return;
+                }
+
                 #[cfg(target_os = "windows")]
-                {
-                    std::process::Command::new("explorer")
-                        .arg(&dest_str)
-                        .spawn()
-                        .ok();
-                }
+                let open_result = std::process::Command::new("explorer")
+                    .arg(dest_str.replace('/', "\\"))
+                    .spawn();
                 #[cfg(target_os = "macos")]
-                {
-                    std::process::Command::new("open")
-                        .arg(&dest_str)
-                        .spawn()
-                        .ok();
-                }
+                let open_result = std::process::Command::new("open").arg(&dest_str).spawn();
                 #[cfg(target_os = "linux")]
-                {
-                    std::process::Command::new("xdg-open")
-                        .arg(&dest_str)
-                        .spawn()
-                        .ok();
+                let open_result = std::process::Command::new("xdg-open")
+                    .arg(&dest_str)
+                    .spawn();
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                let open_result = Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "Unsupported operating system",
+                ));
+
+                match open_result {
+                    Ok(_) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback("Opened output folder.".into());
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not open output folder: {error}").into(),
+                        );
+                    }
                 }
             }
         });
 
         let ui_handle_copy = ui.as_weak();
         ui.on_copy_log_path(move || {
-            if let Some(_ui) = ui_handle_copy.upgrade() {
+            if let Some(ui) = ui_handle_copy.upgrade() {
                 let log_dir = directories::ProjectDirs::from(
                     "",
                     "TakeoutRestorerTeam",
@@ -351,8 +461,19 @@ impl GuiRunner {
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("app.log"));
 
                 let log_path_str = log_dir.to_string_lossy().to_string();
-                if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                    let _ = clipboard.set_text(log_path_str);
+                match arboard::Clipboard::new()
+                    .and_then(|mut clipboard| clipboard.set_text(log_path_str))
+                {
+                    Ok(()) => {
+                        ui.set_action_feedback_is_error(false);
+                        ui.set_action_feedback("Log path copied to the clipboard.".into());
+                    }
+                    Err(error) => {
+                        ui.set_action_feedback_is_error(true);
+                        ui.set_action_feedback(
+                            format!("Could not copy the log path: {error}").into(),
+                        );
+                    }
                 }
             }
         });
@@ -378,8 +499,8 @@ impl GuiRunner {
                     let mut state = WindowState::load();
                     state.width = width;
                     state.height = height;
-                    state.x = pos.x as f32;
-                    state.y = pos.y as f32;
+                    state.x = pos.x as f32 / ui.window().scale_factor();
+                    state.y = pos.y as f32 / ui.window().scale_factor();
                     state.is_maximized = ui.window().is_maximized();
                     state.save();
 
@@ -400,18 +521,65 @@ impl GuiRunner {
     }
 }
 
-pub fn detect_system_dark_mode() -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        use winreg::enums::*;
-        use winreg::RegKey;
-        if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER)
-            .open_subkey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
-        {
-            if let Ok(val) = hkcu.get_value::<u32, _>("AppsUseLightTheme") {
-                return val == 0;
-            }
+pub fn normalize_theme_preference(pref: &str) -> String {
+    match pref.to_lowercase().as_str() {
+        "light" => "Light".to_string(),
+        "dark" => "Dark".to_string(),
+        _ => "System".to_string(),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn prefers_reduced_motion() -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoW, SPI_GETCLIENTAREAANIMATION};
+    let mut enabled: i32 = 0;
+    unsafe {
+        let success = SystemParametersInfoW(
+            SPI_GETCLIENTAREAANIMATION,
+            0,
+            &mut enabled as *mut _ as *mut core::ffi::c_void,
+            0,
+        );
+        if success != 0 {
+            enabled == 0
+        } else {
+            false
         }
     }
-    true
 }
+
+#[cfg(target_os = "macos")]
+fn prefers_reduced_motion() -> bool {
+    use objc2_app_kit::NSWorkspace;
+    unsafe {
+        let workspace = NSWorkspace::sharedWorkspace();
+        workspace.accessibilityDisplayShouldReduceMotion()
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn prefers_reduced_motion() -> bool {
+    // Linux / GTK fallback
+    std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "enable-animations"])
+        .output()
+        .map(|output| {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            stdout.trim() == "false"
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_theme_preference;
+
+    #[test]
+    fn normalizes_theme_preferences_to_the_supported_set() {
+        assert_eq!(normalize_theme_preference("Light"), "Light");
+        assert_eq!(normalize_theme_preference("Dark"), "Dark");
+        assert_eq!(normalize_theme_preference("System"), "System");
+        assert_eq!(normalize_theme_preference("unexpected"), "System");
+    }
+}
+

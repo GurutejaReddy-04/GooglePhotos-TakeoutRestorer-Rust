@@ -89,6 +89,14 @@ impl CoreDispatcher {
         drop(active_db);
         self.cancel_token.store(false, Ordering::SeqCst);
         self.pause_token.store(false, Ordering::SeqCst);
+
+        if let Ok(db) = app_core::state_db::StateDatabase::open(&db_path) {
+            let mut config = app_core::config::Config::default();
+            if let Ok(Some(persisted_dest)) = db.load_execution_contract(&mut config) {
+                *self.output_dir.lock().unwrap_or_else(|e| e.into_inner()) = Some(persisted_dest);
+            }
+        }
+
         self.publisher.publish(AppEvent::RecentRunsLoaded(
             app_core::state_db::get_recent_runs(&config_dir),
         ));
@@ -96,6 +104,8 @@ impl CoreDispatcher {
             name: "Resuming".to_string(),
             total_files: None,
         });
+
+        self.dispatch(UiCommand::StartProcessing)?;
         Ok(())
     }
 
@@ -139,6 +149,23 @@ impl CoreDispatcher {
         }
         if lock_path.exists() {
             let _ = std::fs::remove_file(&lock_path);
+        }
+
+        self.publisher.publish(AppEvent::RecentRunsLoaded(
+            app_core::state_db::get_recent_runs(&config_dir),
+        ));
+        Ok(())
+    }
+
+    fn clear_all_recent_runs(&self) -> Result<(), String> {
+        let config_dir =
+            directories::ProjectDirs::from("", "TakeoutRestorerTeam", "GooglePhotosRestorer")
+                .map(|dirs| dirs.config_dir().to_path_buf())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+        let recent = app_core::state_db::get_recent_runs(&config_dir);
+        for run in recent {
+            let _ = self.delete_recent_run(&run.id);
         }
 
         self.publisher.publish(AppEvent::RecentRunsLoaded(
@@ -205,13 +232,36 @@ impl CommandDispatcher for CoreDispatcher {
                     .unwrap_or_else(|e| e.into_inner())
                     .clone();
 
-                if inputs.is_empty() {
+                let is_resume = self
+                    .db_path
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .is_some();
+
+                if inputs.is_empty() && !is_resume {
                     return Err("No input directories selected".to_string());
                 }
 
                 let out_dir = match output {
                     Some(o) => o,
-                    None => return Err("No output directory selected".to_string()),
+                    None => {
+                        if !is_resume {
+                            let is_inplace = self
+                                .config
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .processing
+                                .output_mode
+                                == app_core::config::OutputMode::InPlace;
+                            if is_inplace && !inputs.is_empty() {
+                                inputs[0].clone()
+                            } else {
+                                return Err("No output directory selected".to_string());
+                            }
+                        } else {
+                            PathBuf::new()
+                        }
+                    }
                 };
 
                 let db_path = self
@@ -258,10 +308,18 @@ impl CommandDispatcher for CoreDispatcher {
             }
             UiCommand::PauseProcessing => {
                 self.pause_token.store(true, Ordering::SeqCst);
+                self.publisher.publish(AppEvent::ProcessingPhaseStarted {
+                    name: "Paused".to_string(),
+                    total_files: None,
+                });
                 Ok(())
             }
             UiCommand::ResumeProcessing => {
                 self.pause_token.store(false, Ordering::SeqCst);
+                self.publisher.publish(AppEvent::ProcessingPhaseStarted {
+                    name: "Processing".to_string(),
+                    total_files: None,
+                });
                 Ok(())
             }
             UiCommand::SelectInputDirectory(path) => {
@@ -318,8 +376,26 @@ impl CommandDispatcher for CoreDispatcher {
                             _ => app_core::config::OutputMode::Copy,
                         };
                     }
-                    "high_performance" => config.processing.high_performance = value == "true",
+                    "high_performance" => {
+                        let is_enabled = value == "true";
+                        config.processing.high_performance = is_enabled;
+                        if is_enabled {
+                            let avail = std::thread::available_parallelism()
+                                .map(|n| n.get() * 2)
+                                .unwrap_or(8);
+                            config.processing.max_workers = avail;
+                            *self
+                                .concurrency_limit
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner()) = avail;
+                        }
+                    }
                     "theme" => config.ui.theme = value,
+                    "sidebar_width" => {
+                        if let Ok(width) = value.parse::<u32>() {
+                            config.ui.sidebar_width = width;
+                        }
+                    }
                     _ => {}
                 }
                 // Save config and publish
@@ -339,11 +415,17 @@ impl CommandDispatcher for CoreDispatcher {
                 Ok(())
             }
             UiCommand::ResetState => {
+                self.cancel_token.store(false, Ordering::SeqCst);
+                self.pause_token.store(false, Ordering::SeqCst);
+                *self.db_path.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                *self.input_dirs.lock().unwrap_or_else(|e| e.into_inner()) = Vec::new();
+                *self.output_dir.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 self.publisher.publish(AppEvent::StateReset);
                 Ok(())
             }
             UiCommand::ResumeRun(run_id) => self.resume_recent_run(&run_id),
             UiCommand::DeleteRun(run_id) => self.delete_recent_run(&run_id),
+            UiCommand::ClearAllRuns => self.clear_all_recent_runs(),
             UiCommand::RecoverRun(run_id) => self.recover_recent_run(&run_id),
 
             UiCommand::Shutdown => {
@@ -398,13 +480,25 @@ pub fn run_core_pipeline(
     };
 
     let pool_size = if config.processing.high_performance {
-        config.processing.max_workers.max(1)
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(8)
     } else {
-        1
+        let max_safe = std::thread::available_parallelism()
+            .map(|n| (n.get() / 2).max(2))
+            .unwrap_or(4);
+        config.processing.max_workers.min(max_safe).max(1)
     };
     let pool = ExifToolPool::new(binary_path, pool_size)?;
 
     let is_resume = db_path.is_some();
+    if config.processing.output_mode != app_core::config::OutputMode::InPlace
+        && !is_resume
+        && !output.ends_with("Google Photos Restored")
+    {
+        output = output.join("Google Photos Restored");
+    }
+
     let resolved_db_path = match db_path {
         Some(p) => p,
         None => {
@@ -507,4 +601,80 @@ pub fn run_core_pipeline(
     pool.shutdown();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use app_core::events::Broadcaster;
+    use shared_ui::CommandDispatcher;
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn test_reset_state_clears_tokens_and_paths() {
+        let publisher = Arc::new(Broadcaster::new());
+        let dispatcher = CoreDispatcher {
+            cancel_token: Arc::new(AtomicBool::new(true)),
+            pause_token: Arc::new(AtomicBool::new(true)),
+            publisher: Arc::clone(&publisher),
+            input_dirs: Arc::new(Mutex::new(vec![PathBuf::from("/tmp/in")])),
+            output_dir: Arc::new(Mutex::new(Some(PathBuf::from("/tmp/out")))),
+            db_path: Arc::new(Mutex::new(Some(PathBuf::from("/tmp/db.sqlite")))),
+            use_system_exiftool: Arc::new(Mutex::new(true)),
+            concurrency_limit: Arc::new(Mutex::new(4)),
+            config: Arc::new(Mutex::new(Config::default())),
+        };
+
+        dispatcher.dispatch(UiCommand::ResetState).unwrap();
+
+        assert!(!dispatcher.cancel_token.load(Ordering::SeqCst));
+        assert!(!dispatcher.pause_token.load(Ordering::SeqCst));
+        assert!(dispatcher.db_path.lock().unwrap().is_none());
+        assert!(dispatcher.input_dirs.lock().unwrap().is_empty());
+        assert!(dispatcher.output_dir.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pause_processing_toggles_token_and_event() {
+        let publisher = Arc::new(Broadcaster::new());
+        let rx = publisher.subscribe();
+        let dispatcher = CoreDispatcher {
+            cancel_token: Arc::new(AtomicBool::new(false)),
+            pause_token: Arc::new(AtomicBool::new(false)),
+            publisher: Arc::clone(&publisher),
+            input_dirs: Arc::new(Mutex::new(Vec::new())),
+            output_dir: Arc::new(Mutex::new(None)),
+            db_path: Arc::new(Mutex::new(None)),
+            use_system_exiftool: Arc::new(Mutex::new(true)),
+            concurrency_limit: Arc::new(Mutex::new(4)),
+            config: Arc::new(Mutex::new(Config::default())),
+        };
+
+        dispatcher.dispatch(UiCommand::PauseProcessing).unwrap();
+        assert!(dispatcher.pause_token.load(Ordering::SeqCst));
+
+        let event = rx.try_recv().unwrap();
+        if let AppEvent::ProcessingPhaseStarted { name, .. } = event {
+            assert_eq!(name, "Paused");
+        } else {
+            panic!("Expected ProcessingPhaseStarted with name Paused");
+        }
+    }
+}
+#[test]
+fn test_high_performance_off() {
+    let mut config = app_core::config::Config::default();
+    config.processing.high_performance = false;
+    config.processing.max_workers = 2;
+    assert!(!config.processing.high_performance);
+    
+    let pool_size = if config.processing.high_performance {
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(8)
+    } else {
+        config.processing.max_workers.max(1)
+    };
+    
+    assert_eq!(pool_size, 2);
 }

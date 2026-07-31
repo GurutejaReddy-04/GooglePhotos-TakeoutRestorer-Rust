@@ -18,21 +18,14 @@ export component UtilityProgress {
             height: parent.height;
             width: parent.width * Math.max(0.0, Math.min(1.0, root.progress));
             background: Theme.accent_primary;
-            animate width { duration: Theme.duration_normal; easing: ease-in-out; }
         }
 
         if root.indeterminate: Rectangle {
             y: 0;
             height: parent.height;
-            width: parent.width * 0.3;
+            width: parent.width * 0.35;
             background: Theme.accent_primary;
-            
-            // Slint animation for indeterminate spinner
-            x: root.indeterminate ? parent.width : -self.width;
-            animate x {
-                duration: 1500ms;
-                iteration-count: -1;
-            }
+            x: (Math.mod(animation-tick() / 1ms, 1400) / 1400.0) * (parent.width + self.width) - self.width;
         }
     }
 }

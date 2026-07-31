@@ -1,0 +1,36 @@
+import { Theme } from "Theme.slint";
+import { MetricTile } from "MetricTile.slint";
+import { ProcessingSnapshot } from "../Models.slint";
+
+export component TelemetryTileRow inherits Rectangle {
+    in property <ProcessingSnapshot> processing;
+    
+    HorizontalLayout {
+        spacing: 16px;
+        
+        MetricTile {
+            horizontal-stretch: 1;
+            label: "Processed";
+            value: "\{root.processing.completed_files} / \{root.processing.total_files}";
+            status: "normal";
+        }
+        MetricTile {
+            horizontal-stretch: 1;
+            label: "Errors";
+            value: "\{root.processing.error_count}";
+            status: root.processing.error_count > 0 ? "error" : "success";
+        }
+        MetricTile {
+            horizontal-stretch: 1;
+            label: "Elapsed";
+            value: root.processing.elapsed_text;
+            status: "normal";
+        }
+        MetricTile {
+            horizontal-stretch: 1;
+            label: "ETA";
+            value: root.processing.eta_text;
+            status: "normal";
+        }
+    }
+}

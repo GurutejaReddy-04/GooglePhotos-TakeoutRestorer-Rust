@@ -1,0 +1,57 @@
+import { Theme } from "Theme.slint";
+
+export component SectionHeader inherits VerticalLayout {
+    in property <string> title: "";
+    in property <string> subtitle: "";
+    in property <string> badge: "";
+    
+    spacing: Theme.space_1;
+
+    HorizontalLayout {
+        alignment: space-between;
+        spacing: Theme.space_2;
+
+        HorizontalLayout {
+            spacing: Theme.space_2;
+            alignment: start;
+
+            Text {
+                text: root.title;
+                color: Theme.text_primary;
+                font-family: Theme.font_family;
+                font-size: Theme.text_base;
+                font-weight: Theme.font_weight_bold;
+                vertical-alignment: center;
+            }
+
+            if (root.badge != ""): Rectangle {
+                height: 18px;
+                background: Theme.accent_soft;
+                border-radius: Theme.radius_sm;
+                border-width: 1px;
+                border-color: Theme.accent_primary.with-alpha(0.3);
+
+                HorizontalLayout {
+                    padding-left: Theme.space_2;
+                    padding-right: Theme.space_2;
+                    Text {
+                        text: root.badge;
+                        color: Theme.accent_primary;
+                        font-family: Theme.font_family;
+                        font-size: Theme.text_xs;
+                        font-weight: Theme.font_weight_bold;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    if (root.subtitle != ""): Text {
+        text: root.subtitle;
+        color: Theme.text_secondary;
+        font-family: Theme.font_family;
+        font-size: Theme.text_xs;
+        wrap: word-wrap;
+    }
+}

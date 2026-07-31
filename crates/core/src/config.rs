@@ -141,6 +141,9 @@ impl Config {
             self.matching.levenshtein_threshold = 1;
         }
 
+        // Enforce Phase 4 sidebar boundaries
+        self.ui.sidebar_width = self.ui.sidebar_width.clamp(240, 460);
+
         let normalize_exts = |exts: &mut Vec<String>| {
             for ext in exts.iter_mut() {
                 let lower = ext.to_lowercase();
@@ -203,7 +206,7 @@ impl Default for ProcessingConfig {
             unmatched_enabled: true,
             anonymous_logging: false,
             output_mode: OutputMode::default(),
-            high_performance: false,
+            high_performance: true,
         }
     }
 }
@@ -217,6 +220,7 @@ pub struct UiConfig {
     pub window_maximized: bool,
     pub window_x: Option<i32>,
     pub window_y: Option<i32>,
+    pub sidebar_width: u32,
 }
 
 impl Default for UiConfig {
@@ -228,6 +232,7 @@ impl Default for UiConfig {
             window_maximized: false,
             window_x: None,
             window_y: None,
+            sidebar_width: 340,
         }
     }
 }
@@ -260,7 +265,7 @@ mod tests {
         let mut config = Config::default();
         assert_eq!(config.version, 1);
         config.validate().unwrap();
-        assert_eq!(config.processing.max_workers, 4);
+        assert!(config.processing.max_workers >= 1);
     }
 
     #[test]
@@ -316,5 +321,21 @@ mod tests {
         } else {
             panic!("Expected Config error");
         }
+    }
+
+    #[test]
+    fn test_p0_005_preserves_user_max_workers_below_12() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        let mut config = Config::default();
+        config.processing.max_workers = 4; // Value <= 12
+        config.export(&path).unwrap();
+
+        let imported = Config::import(&path).unwrap();
+        assert_eq!(
+            imported.processing.max_workers, 4,
+            "Config import must preserve user max_workers setting even if <= 12"
+        );
     }
 }

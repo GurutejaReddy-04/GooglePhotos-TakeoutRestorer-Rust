@@ -1,0 +1,95 @@
+import { CheckBox } from "std-widgets.slint";
+import { Theme } from "Theme.slint";
+
+export component SettingRow inherits Rectangle {
+    in property <image> icon;
+    in property <bool> has_icon: false;
+    in property <string> title: "";
+    in property <string> description: "";
+    in-out property <bool> checked: false;
+    in property <bool> enabled: true;
+
+    callback toggled(bool);
+
+    background: touch.has-hover && root.enabled ? Theme.bg_hover : Theme.bg_surface;
+    border-radius: Theme.radius_md;
+    border-width: 1px;
+    border-color: root.has_focus ? Theme.border_focus : Theme.border_subtle;
+
+    animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    property <bool> has_focus: focus_scope.has-focus;
+
+    forward-focus: focus_scope;
+    focus_scope := FocusScope {
+        key-pressed(e) => {
+            if (root.enabled && (e.text == " " || e.text == "\n")) {
+                root.checked = !root.checked;
+                root.toggled(root.checked);
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space_3;
+        padding-right: Theme.space_3;
+        padding-top: Theme.space_2;
+        padding-bottom: Theme.space_2;
+        spacing: Theme.space_3;
+        alignment: space-between;
+
+        HorizontalLayout {
+            horizontal-stretch: 1;
+            spacing: Theme.space_2;
+
+            if (root.has_icon): Image {
+                source: root.icon;
+                width: 16px;
+                height: 16px;
+                colorize: Theme.text_secondary;
+            }
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+                alignment: center;
+
+                Text {
+                    text: root.title;
+                    color: root.enabled ? Theme.text_primary : Theme.text_disabled;
+                    font-family: Theme.font_family;
+                    font-size: Theme.text_xs;
+                    font-weight: Theme.font_weight_semibold;
+                }
+
+                if (root.description != ""): Text {
+                    text: root.description;
+                    color: Theme.text_secondary;
+                    font-family: Theme.font_family;
+                    font-size: 11px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        CheckBox {
+            enabled: root.enabled;
+            checked: root.checked;
+            toggled => {
+                root.checked = self.checked;
+                root.toggled(root.checked);
+            }
+        }
+    }
+}
