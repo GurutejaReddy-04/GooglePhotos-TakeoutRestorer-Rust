@@ -31,8 +31,12 @@ export component CollapsibleSection inherits Rectangle {
                 background: parent.has-hover ? Theme.bg_hover : Theme.bg_surface;
                 border-radius: Theme.radius_md;
                 animate background { duration: Theme.duration_fast; }
-                border-width: focus_scope.has-focus ? 2px : 1px;
-                border-color: focus_scope.has-focus ? Theme.border_focus : Theme.border_subtle;
+                border-width: focus_scope.has-focus ? 2px : 0px;
+                border-color: focus_scope.has-focus ? Theme.border_focus : transparent;
+                
+                drop-shadow-blur: 4px;
+                drop-shadow-offset-y: 2px;
+                drop-shadow-color: Theme.is_dark_mode ? #00000040 : #00000010;
 
                 HorizontalLayout {
                     padding-left: Theme.space_4;
