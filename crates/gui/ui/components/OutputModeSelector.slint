@@ -21,23 +21,6 @@ export component OutputModeSelector inherits Rectangle {
         spacing: Theme.space_2;
 
         VerticalLayout {
-            spacing: 2px;
-            Text {
-                text: "❷ Output Mode";
-                color: root.enabled ? Theme.text_primary : Theme.text_disabled;
-                font-family: Theme.font_family;
-                font-size: Theme.text_xs;
-                font-weight: Theme.font_weight_bold;
-            }
-            Text {
-                text: "Select how restored media files should be saved";
-                color: Theme.text_secondary;
-                font-family: Theme.font_family;
-                font-size: 11px;
-            }
-        }
-
-        VerticalLayout {
             spacing: Theme.space_2;
 
             // Option Card 1: Copy Mode
