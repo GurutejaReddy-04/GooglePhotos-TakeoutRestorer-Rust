@@ -27,7 +27,7 @@ export component AppHeader inherits Rectangle {
     }
     
     HorizontalLayout {
-        // macOS traffic light inset
+        // macOS traffic light inset (left)
         padding-left: root.os_platform == "macos" ? 72px : 16px;
         padding-right: 16px;
         padding-top: root.os_platform == "macos" ? 16px : 0px;
@@ -44,6 +44,7 @@ export component AppHeader inherits Rectangle {
                     source: @image-url("../../../../assets/icon.png");
                     width: 20px;
                     height: 20px;
+                    image-fit: contain;
                     vertical-alignment: center;
                 }
                 Text {
@@ -56,14 +57,11 @@ export component AppHeader inherits Rectangle {
                 }
             }
             
-            Rectangle {
-                vertical-stretch: 1;
-                StatusPill {
-                    status_type: root.status_type;
-                    text: root.status_text;
-                    y: (parent.height - self.height) / 2;
-                    clicked => { root.status_clicked(); }
-                }
+            StatusPill {
+                status_type: root.status_type;
+                text: root.status_text;
+                y: (parent.height - self.height) / 2;
+                clicked => { root.status_clicked(); }
             }
         }
         
@@ -98,13 +96,10 @@ export component AppHeader inherits Rectangle {
             alignment: end;
             spacing: 12px;
             
-            Rectangle {
-                vertical-stretch: 1;
-                ThemeSwitcher {
-                    theme: root.theme;
-                    y: (parent.height - self.height) / 2;
-                    change_theme(t) => { root.change_theme(t); }
-                }
+            ThemeSwitcher {
+                theme: root.theme;
+                y: (parent.height - self.height) / 2;
+                change_theme(t) => { root.change_theme(t); }
             }
             
             Rectangle {
