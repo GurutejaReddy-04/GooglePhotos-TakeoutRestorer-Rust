@@ -6,6 +6,7 @@ import { WelcomePage, PastRun } from "WelcomePage.slint";
 import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot } from "Models.slint";
 import { WindowChrome } from "components/WindowChrome.slint";
 import { SplitLayout } from "components/SplitLayout.slint";
+import { AppHeader } from "components/AppHeader.slint";
 
 export component MainWindow inherits WindowChrome {
     preferred-width: 1280px;
@@ -56,11 +57,18 @@ export component MainWindow inherits WindowChrome {
     callback update_results_filter(string, string);
 
     VerticalLayout {
-        // App Header Placeholder
-        Rectangle {
-            height: 60px;
-            background: Theme.bg_surface;
-            Text { text: "App Header Placeholder"; color: Theme.text_primary; }
+        // App Header
+        AppHeader {
+            os_platform: root.os_platform;
+            active_tab: root.active_tab;
+            theme: root.settings.theme;
+            status_type: root.show_fatal_error ? 3 : (root.processing.is_finished ? 1 : (root.processing.is_processing ? 1 : 0));
+            status_text: root.show_fatal_error ? "Error" : (root.processing.is_finished ? "Completed" : (root.processing.is_processing ? "Running" : "Idle"));
+            
+            tab_clicked(i) => { root.active_tab = i; }
+            change_theme(t) => { root.change_theme(t); }
+            settings_clicked() => { /* handled later */ }
+            status_clicked() => { root.active_tab = 1; }
         }
 
         // Split Layout Placeholder

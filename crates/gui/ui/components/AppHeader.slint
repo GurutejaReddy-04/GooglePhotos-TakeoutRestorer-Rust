@@ -1,44 +1,88 @@
 import { Theme } from "Theme.slint";
+import { ThemeSwitcher } from "ThemeSwitcher.slint";
+import { StatusPill } from "StatusPill.slint";
 
 export component AppHeader inherits Rectangle {
     in property <int> active_tab: 0;
-    callback tab_clicked(int);
-    callback toggle_theme();
+    in property <string> os_platform: "windows";
+    in property <string> theme: "System";
+    in property <int> status_type: 0;
+    in property <string> status_text: "Idle";
     
-    height: 60px;
+    callback tab_clicked(int);
+    callback change_theme(string);
+    callback settings_clicked();
+    callback status_clicked();
+    
+    // Windows/Linux = 40px, macOS = 56px
+    height: root.os_platform == "macos" ? 56px : 40px;
     background: Theme.bg_surface;
-    border-color: Theme.border_subtle;
-    // Slint doesn't have border-bottom easily, so we just wrap in a layout with a bottom rect, or use a tiny rect
+    
+    // Bottom border
+    Rectangle {
+        y: parent.height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: Theme.border_subtle;
+    }
     
     HorizontalLayout {
-        padding-left: 24px;
-        padding-right: 24px;
+        // macOS traffic light inset
+        padding-left: root.os_platform == "macos" ? 72px : 16px;
+        padding-right: 16px;
+        padding-top: root.os_platform == "macos" ? 16px : 0px;
         alignment: space-between;
         
-        Text {
-            text: "Google Photos Takeout Restorer";
-            font-size: 18px;
-            font-weight: 700;
-            color: Theme.text_primary;
-            vertical-alignment: center;
+        // Brand & Status
+        HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            
+            HorizontalLayout {
+                spacing: 8px;
+                Image {
+                    source: @image-url("../../../../assets/icon.png");
+                    width: 20px;
+                    height: 20px;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: "Google Photos Takeout Restorer";
+                    font-size: Theme.text_sm;
+                    font-family: Theme.font_family;
+                    font-weight: Theme.font_weight_semibold;
+                    color: Theme.text_primary;
+                    vertical-alignment: center;
+                }
+            }
+            
+            Rectangle {
+                vertical-stretch: 1;
+                StatusPill {
+                    status_type: root.status_type;
+                    text: root.status_text;
+                    y: (parent.height - self.height) / 2;
+                    clicked => { root.status_clicked(); }
+                }
+            }
         }
         
+        // Center: ViewTabs (Set Up | Run | Review)
         HorizontalLayout {
-            spacing: 8px;
             alignment: center;
+            spacing: 8px;
             
-            // Tab buttons
-            for tab[i] in ["Welcome", "Dashboard", "Settings"]: Rectangle {
-                width: 100px;
-                height: 40px;
-                y: 10px;
-                border-radius: 4px;
-                background: (root.active_tab == i) ? Theme.border_subtle.with-alpha(0.3) : (ta_tab.has-hover ? Theme.border_subtle.with-alpha(0.1) : transparent);
+            for tab[i] in ["Set Up", "Run", "Review"]: Rectangle {
+                width: 80px;
+                height: 28px;
+                border-radius: Theme.radius_md;
+                background: root.active_tab == i ? Theme.bg_hover : (ta_tab.has-hover ? Theme.bg_subtle : transparent);
                 
                 Text {
                     text: tab;
-                    color: (root.active_tab == i) ? Theme.accent_primary : Theme.text_primary;
-                    font-weight: (root.active_tab == i) ? 600 : 400;
+                    color: root.active_tab == i ? Theme.text_primary : Theme.text_secondary;
+                    font-size: Theme.text_sm;
+                    font-weight: root.active_tab == i ? Theme.font_weight_semibold : Theme.font_weight_medium;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -49,49 +93,46 @@ export component AppHeader inherits Rectangle {
             }
         }
         
-        Rectangle {
-            width: 120px;
-            height: 40px;
-            y: 10px;
+        // Right: ThemeToggle & Settings
+        HorizontalLayout {
+            alignment: end;
+            spacing: 12px;
             
-            HorizontalLayout {
-                spacing: 8px;
-                alignment: end;
-                Text {
-                    text: "Dark Mode";
-                    color: Theme.text_primary;
-                    vertical-alignment: center;
+            Rectangle {
+                vertical-stretch: 1;
+                ThemeSwitcher {
+                    theme: root.theme;
+                    y: (parent.height - self.height) / 2;
+                    change_theme(t) => { root.change_theme(t); }
                 }
-                Rectangle {
-                    width: 40px;
-                    height: 20px;
-                    y: 10px;
-                    border-radius: 10px;
-                    background: Theme.is_dark_mode ? Theme.accent_primary : Theme.border_subtle;
+            }
+            
+            Rectangle {
+                vertical-stretch: 1;
+                width: 28px;
+                
+                gear_bg := Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: Theme.radius_md;
+                    background: ta_settings.has-hover ? Theme.bg_hover : transparent;
                     
-                    Rectangle {
+                    Image {
+                        source: @image-url("../../assets/icons/settings.svg");
                         width: 16px;
                         height: 16px;
-                        border-radius: 8px;
-                        background: Theme.bg_surface;
-                        x: Theme.is_dark_mode ? 22px : 2px;
-                        y: 2px;
-                        animate x { duration: 150ms; }
+                        colorize: Theme.text_secondary;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
                     }
                     
-                    ta_theme := TouchArea {
-                        clicked => { root.toggle_theme(); }
+                    ta_settings := TouchArea {
+                        clicked => { root.settings_clicked(); }
+                        mouse-cursor: pointer;
                     }
                 }
             }
         }
-    }
-    
-    // Bottom border
-    Rectangle {
-        y: parent.height - 1px;
-        width: parent.width;
-        height: 1px;
-        background: Theme.border_subtle;
     }
 }
