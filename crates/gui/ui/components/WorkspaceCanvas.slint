@@ -3,10 +3,18 @@ import { ProcessingSnapshot } from "../Models.slint";
 import { TelemetryTileRow } from "TelemetryTileRow.slint";
 import { StageTracker } from "StageTracker.slint";
 import { ProgressCard } from "ProgressCard.slint";
+import { ChecklistCard } from "ChecklistCard.slint";
+import { PipelineDiagramCard } from "PipelineDiagramCard.slint";
+import { RecentSessionCard } from "RecentSessionCard.slint";
+import { PastRun, SettingsSnapshot } from "../Models.slint";
 
 export component WorkspaceCanvas inherits Rectangle {
     in property <ProcessingSnapshot> processing;
     in property <int> active_tab: 0;
+    
+    in property <[string]> inputs: [];
+    in property <SettingsSnapshot> settings;
+    in property <[PastRun]> past_runs: [];
 
     background: Theme.bg_app;
 
@@ -35,14 +43,39 @@ export component WorkspaceCanvas inherits Rectangle {
     }
     
     // Set Up View placeholder
-    if (root.active_tab == 0): VerticalLayout {
-        padding: 24px;
-        Text {
-            text: "Select sources and output in the left panel to begin.";
-            color: Theme.text_secondary;
-            font-size: Theme.text_lg;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+    if (root.active_tab == 0): Flickable {
+        vertical-stretch: 1;
+        viewport-height: setup_layout.preferred-height;
+        
+        setup_layout := VerticalLayout {
+            padding: 24px;
+            spacing: 24px;
+            alignment: start;
+            
+            Text {
+                text: "Getting Started";
+                font-size: Theme.text_xl;
+                font-weight: Theme.font_weight_bold;
+                color: Theme.text_primary;
+            }
+            
+            HorizontalLayout {
+                spacing: 24px;
+                
+                ChecklistCard {
+                    horizontal-stretch: 1;
+                    inputs_count: root.inputs.length;
+                    destination_set: root.settings.output_mode == "in-place" || root.settings.destination_path != "";
+                }
+                
+                PipelineDiagramCard {
+                    horizontal-stretch: 1;
+                }
+            }
+            
+            if (root.past_runs.length > 0): RecentSessionCard {
+                run: root.past_runs[0];
+            }
         }
     }
     

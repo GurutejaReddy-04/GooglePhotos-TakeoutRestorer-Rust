@@ -1,0 +1,51 @@
+import { Theme } from "Theme.slint";
+import { Card } from "Card.slint";
+import { PastRun } from "../Models.slint";
+import { SecondaryButton } from "SecondaryButton.slint";
+
+export component RecentSessionCard inherits Card {
+    in property <PastRun> run;
+    
+    VerticalLayout {
+        padding: Theme.space_4;
+        spacing: Theme.space_3;
+        
+        HorizontalLayout {
+            alignment: space-between;
+            Text {
+                text: "Recent Session";
+                font-size: Theme.text_sm;
+                font-weight: Theme.font_weight_bold;
+                color: Theme.text_primary;
+            }
+            Text {
+                text: root.run.last_active;
+                font-size: Theme.text_xs;
+                color: Theme.text_secondary;
+                vertical-alignment: center;
+            }
+        }
+        
+        Text {
+            text: root.run.title;
+            font-size: Theme.text_xs;
+            color: Theme.text_secondary;
+        }
+        
+        HorizontalLayout {
+            alignment: space-between;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "\{root.run.percent_complete}% Complete";
+                    font-size: Theme.text_sm;
+                    font-weight: Theme.font_weight_semibold;
+                    color: Theme.text_primary;
+                }
+            }
+            SecondaryButton {
+                text: "Resume";
+            }
+        }
+    }
+}

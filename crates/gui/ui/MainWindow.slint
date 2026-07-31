@@ -2,8 +2,8 @@ import { Theme } from "components/Theme.slint";
 export { Theme }
 import { ThemeSwitcher } from "components/ThemeSwitcher.slint";
 import { CollapsibleSection } from "components/CollapsibleSection.slint";
-import { WelcomePage, PastRun } from "WelcomePage.slint";
-import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot } from "Models.slint";
+import { WelcomePage } from "WelcomePage.slint";
+import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot, PastRun } from "Models.slint";
 import { WindowChrome } from "components/WindowChrome.slint";
 import { SplitLayout } from "components/SplitLayout.slint";
 import { AppHeader } from "components/AppHeader.slint";
@@ -82,6 +82,7 @@ export component MainWindow inherits WindowChrome {
             is_processing: root.processing.is_processing;
             processing: root.processing;
             active_tab: root.active_tab;
+            past_runs: root.past_runs;
             
             select_zip_files => { root.select_zip_files(); }
             select_folders => { root.select_folders(); }
