@@ -1,13 +1,36 @@
 import { SplitterHandle } from "SplitterHandle.slint";
 import { SetupPanel } from "SetupPanel.slint";
 import { WorkspaceCanvas } from "WorkspaceCanvas.slint";
+import { SettingsSnapshot } from "../Models.slint";
 
 export component SplitLayout inherits Rectangle {
     in-out property <int> left_panel_width: 340;
     
+    in property <[string]> inputs: [];
+    in property <SettingsSnapshot> settings;
+    in property <bool> is_processing: false;
+    
+    callback select_zip_files();
+    callback select_folders();
+    callback remove_input(string);
+    callback select_destination();
+    callback update_setting(string, string);
+    callback start_restoration();
+    
     HorizontalLayout {
         SetupPanel {
             width: root.left_panel_width * 1px;
+            
+            inputs: root.inputs;
+            settings: root.settings;
+            is_processing: root.is_processing;
+            
+            select_zip_files => { root.select_zip_files(); }
+            select_folders => { root.select_folders(); }
+            remove_input(s) => { root.remove_input(s); }
+            select_destination => { root.select_destination(); }
+            update_setting(k,v) => { root.update_setting(k, v); }
+            start_restoration => { root.start_restoration(); }
         }
         SplitterHandle {
             panel_width <=> root.left_panel_width;

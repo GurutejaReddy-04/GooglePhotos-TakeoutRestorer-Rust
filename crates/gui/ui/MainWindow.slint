@@ -75,7 +75,18 @@ export component MainWindow inherits WindowChrome {
         SplitLayout {
             horizontal-stretch: 1;
             vertical-stretch: 1;
-            left_panel_width: 340;
+            left_panel_width: root.settings.sidebar_width;
+            
+            inputs: root.inputs;
+            settings: root.settings;
+            is_processing: root.processing.is_processing;
+            
+            select_zip_files => { root.select_zip_files(); }
+            select_folders => { root.select_folders(); }
+            remove_input(s) => { root.remove_input(s); }
+            select_destination => { root.select_destination(); }
+            update_setting(k,v) => { root.update_setting(k, v); }
+            start_restoration => { root.start_processing(); }
         }
     }
 }
