@@ -80,6 +80,8 @@ export component MainWindow inherits WindowChrome {
             inputs: root.inputs;
             settings: root.settings;
             is_processing: root.processing.is_processing;
+            processing: root.processing;
+            active_tab: root.active_tab;
             
             select_zip_files => { root.select_zip_files(); }
             select_folders => { root.select_folders(); }

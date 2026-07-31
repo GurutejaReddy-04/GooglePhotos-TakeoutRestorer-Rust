@@ -1,5 +1,60 @@
 import { Theme } from "Theme.slint";
+import { ProcessingSnapshot } from "../Models.slint";
+import { TelemetryTileRow } from "TelemetryTileRow.slint";
+import { StageTracker } from "StageTracker.slint";
+import { ProgressCard } from "ProgressCard.slint";
 
 export component WorkspaceCanvas inherits Rectangle {
+    in property <ProcessingSnapshot> processing;
+    in property <int> active_tab: 0;
+
     background: Theme.bg_app;
+
+    // Run View
+    if (root.active_tab == 1): VerticalLayout {
+        padding: 24px;
+        spacing: 24px;
+        
+        TelemetryTileRow {
+            processing: root.processing;
+        }
+        
+        StageTracker {
+            processing: root.processing;
+        }
+        
+        ProgressCard {
+            phase: root.processing.current_phase_text;
+            speed: root.processing.speed_text;
+            eta: root.processing.eta_text;
+            progress_value: root.processing.total_files > 0 ? (root.processing.completed_files / root.processing.total_files) : 0;
+            progress_text: root.processing.formatted_progress;
+        }
+        
+        Rectangle { vertical-stretch: 1; }
+    }
+    
+    // Set Up View placeholder
+    if (root.active_tab == 0): VerticalLayout {
+        padding: 24px;
+        Text {
+            text: "Select sources and output in the left panel to begin.";
+            color: Theme.text_secondary;
+            font-size: Theme.text_lg;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    
+    // Review View placeholder
+    if (root.active_tab == 2): VerticalLayout {
+        padding: 24px;
+        Text {
+            text: "Review results will appear here after restoration completes.";
+            color: Theme.text_secondary;
+            font-size: Theme.text_lg;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
 }

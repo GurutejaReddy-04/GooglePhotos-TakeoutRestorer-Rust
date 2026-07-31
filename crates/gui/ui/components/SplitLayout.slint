@@ -1,7 +1,7 @@
 import { SplitterHandle } from "SplitterHandle.slint";
 import { SetupPanel } from "SetupPanel.slint";
 import { WorkspaceCanvas } from "WorkspaceCanvas.slint";
-import { SettingsSnapshot } from "../Models.slint";
+import { SettingsSnapshot, ProcessingSnapshot } from "../Models.slint";
 
 export component SplitLayout inherits Rectangle {
     in-out property <int> left_panel_width: 340;
@@ -16,6 +16,8 @@ export component SplitLayout inherits Rectangle {
     callback select_destination();
     callback update_setting(string, string);
     callback start_restoration();
+    in property <ProcessingSnapshot> processing;
+    in property <int> active_tab: 0;
     
     HorizontalLayout {
         SetupPanel {
@@ -39,6 +41,8 @@ export component SplitLayout inherits Rectangle {
         }
         WorkspaceCanvas {
             horizontal-stretch: 1;
+            processing: root.processing;
+            active_tab: root.active_tab;
         }
     }
 }
