@@ -1,54 +1,49 @@
 import { Theme } from "Theme.slint";
 
-export component UtilityStepper {
-    in property <int> current_step: 0;
-    in property <[string]> steps: ["Import", "Destination", "Settings", "Export", "Results"];
-    
-    height: 32px;
-    
-    HorizontalLayout {
-        spacing: Theme.space_4;
-        alignment: start;
-        
-        for step[idx] in root.steps: HorizontalLayout {
-            spacing: Theme.space_2;
-            alignment: center;
-            
+export component UtilityStepper inherits HorizontalLayout {
+    in property <int> current_step: 1;
+    in property <[string]> steps: ["Sources", "Destination", "Options", "Review", "Results"];
+
+    spacing: Theme.space_2;
+    alignment: center;
+
+    for step[idx] in root.steps: HorizontalLayout {
+        spacing: Theme.space_2;
+        alignment: center;
+
+        Rectangle {
+            width: 20px;
+            height: 20px;
+            border-radius: Theme.radius_full;
+            border-width: 1px;
+            background: idx < root.current_step - 1 ? Theme.accent_primary :
+                        (idx == root.current_step - 1 ? Theme.accent_primary : transparent);
+            border-color: idx <= root.current_step - 1 ? Theme.accent_primary : Theme.border_strong;
+
             Text {
-                text: idx + 1;
-                font-size: Theme.text_sm;
-                font-weight: Theme.font_weight_bold;
-                color: idx == root.current_step ? Theme.text_inverted : Theme.text_secondary;
-                
-                // Number circle
-                Rectangle {
-                    width: 18px;
-                    height: 18px;
-                    border-radius: 9px;
-                    background: idx == root.current_step ? Theme.accent_primary : transparent;
-                    border-width: 1px;
-                    border-color: idx == root.current_step ? transparent : Theme.border_subtle;
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                }
-            }
-            
-            Text {
-                text: step;
-                font-size: Theme.text_sm;
-                font-weight: idx == root.current_step ? Theme.font_weight_bold : Theme.font_weight_medium;
-                color: idx == root.current_step ? Theme.text_primary : Theme.text_secondary;
-                vertical-alignment: center;
-            }
-            
-            if idx < root.steps.length - 1: Text {
-                text: ">";
+                text: idx < root.current_step - 1 ? "✓" : idx + 1;
                 font-size: Theme.text_xs;
-                color: Theme.border_subtle;
+                font-family: Theme.font_family;
+                font-weight: Theme.font_weight_bold;
+                color: idx <= root.current_step - 1 ? Theme.text_on_accent : Theme.text_secondary;
+                horizontal-alignment: center;
                 vertical-alignment: center;
-                padding-left: Theme.space_2;
-                padding-right: Theme.space_2;
             }
+        }
+
+        Text {
+            text: step;
+            font-size: Theme.text_sm;
+            font-family: Theme.font_family;
+            font-weight: idx == root.current_step - 1 ? Theme.font_weight_semibold : Theme.font_weight_medium;
+            color: idx <= root.current_step - 1 ? Theme.text_primary : Theme.text_secondary;
+            vertical-alignment: center;
+        }
+
+        if (idx < root.steps.length - 1): Rectangle {
+            width: 20px;
+            height: 1px;
+            background: idx < root.current_step - 1 ? Theme.accent_primary : Theme.border_subtle;
         }
     }
 }

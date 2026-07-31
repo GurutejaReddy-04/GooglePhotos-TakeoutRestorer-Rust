@@ -3,7 +3,8 @@ import { UtilityButton } from "components/UtilityButton.slint";
 import { UtilityCard } from "components/UtilityCard.slint";
 import { UtilityBadge } from "components/UtilityBadge.slint";
 import { UtilityProgress } from "components/UtilityProgress.slint";
-import { ScrollView, ListView } from "std-widgets.slint";
+import { PageHeader } from "components/PageHeader.slint";
+import { ListView } from "std-widgets.slint";
 
 export struct PastRun {
     id: string,
@@ -20,142 +21,135 @@ export component WelcomePage inherits Rectangle {
     callback resume_run_clicked(string);
     callback delete_run_clicked(string);
     callback recover_run_clicked(string);
-    
+
     in property <[PastRun]> past_runs: [];
 
     background: Theme.bg_app;
 
     VerticalLayout {
-        padding: Theme.space_8;
-        spacing: Theme.space_6;
+        padding: Theme.space_10;
+        spacing: Theme.space_8;
         alignment: start;
-        
-        // Header
-        VerticalLayout {
-            spacing: Theme.space_2;
-            Text {
-                text: "Google Photos Takeout Restorer";
-                font-size: Theme.text_xl;
-                font-weight: Theme.font_weight_bold;
-                color: Theme.text_primary;
-            }
-            Text {
-                text: "Start a new restoration or resume a previous session.";
-                font-size: Theme.text_base;
-                color: Theme.text_secondary;
-            }
+        max-width: Theme.content_max_width;
+
+        PageHeader {
+            eyebrow: "GOOGLE PHOTOS TAKEOUT";
+            title: "Restore the metadata your photos deserve";
+            description: "Choose Takeout archives or extracted folders, review where restored files go, then start with confidence.";
         }
-        
-        // Start New Button
+
         HorizontalLayout {
+            spacing: Theme.space_4;
             alignment: start;
+
             UtilityButton {
-                text: "Start New Export";
-                variant: "primary";
+                text: "New restore";
                 icon: "+";
+                variant: "primary";
                 clicked => { root.create_new_project_clicked(); }
+            }
+            Text {
+                text: "You can safely resume an interrupted restore below.";
+                color: Theme.text_secondary;
+                font-family: Theme.font_family;
+                font-size: Theme.text_sm;
+                vertical-alignment: center;
             }
         }
 
-        // Recent Runs Section
-        if root.past_runs.length > 0 : VerticalLayout {
+        HorizontalLayout {
             spacing: Theme.space_4;
-            
+
+            UtilityCard {
+                VerticalLayout {
+                    padding: Theme.space_4;
+                    spacing: Theme.space_2;
+                    Text { text: "1"; color: Theme.accent_primary; font-family: Theme.font_family; font-size: Theme.text_lg; font-weight: Theme.font_weight_bold; }
+                    Text { text: "Add sources"; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_base; font-weight: Theme.font_weight_semibold; }
+                    Text { text: "Select Takeout ZIP archives or extracted folders."; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_sm; wrap: word-wrap; }
+                }
+            }
+            UtilityCard {
+                VerticalLayout {
+                    padding: Theme.space_4;
+                    spacing: Theme.space_2;
+                    Text { text: "2"; color: Theme.accent_primary; font-family: Theme.font_family; font-size: Theme.text_lg; font-weight: Theme.font_weight_bold; }
+                    Text { text: "Choose a destination"; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_base; font-weight: Theme.font_weight_semibold; }
+                    Text { text: "Validate available space before any files are restored."; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_sm; wrap: word-wrap; }
+                }
+            }
+            UtilityCard {
+                VerticalLayout {
+                    padding: Theme.space_4;
+                    spacing: Theme.space_2;
+                    Text { text: "3"; color: Theme.accent_primary; font-family: Theme.font_family; font-size: Theme.text_lg; font-weight: Theme.font_weight_bold; }
+                    Text { text: "Review and restore"; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_base; font-weight: Theme.font_weight_semibold; }
+                    Text { text: "Track progress, inspect results, and resolve exceptions."; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_sm; wrap: word-wrap; }
+                }
+            }
+        }
+
+        if (root.past_runs.length == 0): UtilityCard {
+            VerticalLayout {
+                padding: Theme.space_6;
+                spacing: Theme.space_2;
+                Text { text: "No saved restores yet"; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_lg; font-weight: Theme.font_weight_semibold; }
+                Text { text: "Your recent and interrupted restores will appear here so they are easy to continue."; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_sm; }
+            }
+        }
+
+        if (root.past_runs.length > 0): VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Theme.space_3;
+
             Text {
-                text: "Recent Sessions";
+                text: "Recent restores";
+                color: Theme.text_primary;
+                font-family: Theme.font_family;
                 font-size: Theme.text_lg;
                 font-weight: Theme.font_weight_semibold;
-                color: Theme.text_primary;
             }
 
             Rectangle {
-                horizontal-stretch: 1;
                 vertical-stretch: 1;
-                
+                clip: true;
+
                 ListView {
                     for run in root.past_runs: VerticalLayout {
-                        padding-bottom: Theme.space_4;
+                        padding-bottom: Theme.space_3;
+                        Rectangle {
+                            height: 112px;
+                            background: Theme.bg_surface;
+                            border-radius: Theme.radius_md;
+                            border-width: 1px;
+                            border-color: run.has_recovery_data ? Theme.status_warning.with-alpha(0.65) : Theme.border_subtle;
 
-                        UtilityCard {
-                            is_warning: run.has_recovery_data;
-                            
                             VerticalLayout {
                                 padding: Theme.space_4;
                                 spacing: Theme.space_3;
-                                
+
                                 HorizontalLayout {
                                     alignment: space-between;
-                                    
                                     VerticalLayout {
                                         spacing: Theme.space_1;
                                         HorizontalLayout {
                                             spacing: Theme.space_2;
-                                            Text {
-                                                text: run.title;
-                                                font-size: Theme.text_base;
-                                                font-weight: Theme.font_weight_bold;
-                                                color: Theme.text_primary;
-                                                vertical-alignment: center;
-                                            }
-                                            if run.has_recovery_data: UtilityBadge {
-                                                text: "Recovery Available";
-                                                status: "warning";
-                                            }
-                                            if !run.has_recovery_data && run.percent_complete == 100: UtilityBadge {
-                                                text: "Completed";
-                                                status: "success";
-                                            }
+                                            Text { text: run.title; color: Theme.text_primary; font-family: Theme.font_family; font-size: Theme.text_base; font-weight: Theme.font_weight_semibold; }
+                                            if (run.has_recovery_data): UtilityBadge { text: "Recovery available"; status: "warning"; }
+                                            if (!run.has_recovery_data && run.percent_complete == 100): UtilityBadge { text: "Completed"; status: "success"; }
                                         }
-                                        Text {
-                                            text: "Last active: " + run.last_active;
-                                            font-size: Theme.text_xs;
-                                            color: Theme.text_secondary;
-                                        }
+                                        Text { text: "Last active " + run.last_active; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_xs; }
                                     }
-
                                     HorizontalLayout {
                                         spacing: Theme.space_2;
-                                        alignment: end;
-                                        
-                                        if run.has_recovery_data: UtilityButton {
-                                            text: "Recover";
-                                            variant: "secondary";
-                                            clicked => { root.recover_run_clicked(run.id); }
-                                        }
-                                        if !run.has_recovery_data && run.percent_complete < 100: UtilityButton {
-                                            text: "Resume";
-                                            variant: "secondary";
-                                            clicked => { root.resume_run_clicked(run.id); }
-                                        }
-                                        UtilityButton {
-                                            text: "Delete";
-                                            variant: "ghost";
-                                            clicked => { root.delete_run_clicked(run.id); }
-                                        }
+                                        if (run.has_recovery_data): UtilityButton { text: "Recover"; variant: "secondary"; clicked => { root.recover_run_clicked(run.id); } }
+                                        if (!run.has_recovery_data && run.percent_complete < 100): UtilityButton { text: "Resume"; variant: "secondary"; clicked => { root.resume_run_clicked(run.id); } }
+                                        UtilityButton { text: "Delete"; variant: "ghost"; clicked => { root.delete_run_clicked(run.id); } }
                                     }
                                 }
-                                
-                                // Progress Track
-                                VerticalLayout {
-                                    spacing: Theme.space_2;
-                                    UtilityProgress {
-                                        progress: run.percent_complete / 100.0;
-                                    }
-                                    HorizontalLayout {
-                                        alignment: space-between;
-                                        Text {
-                                            text: run.percent_complete + "%";
-                                            font-size: Theme.text_xs;
-                                            color: Theme.text_primary;
-                                            font-weight: Theme.font_weight_semibold;
-                                        }
-                                        Text {
-                                            text: run.completed_files + " / " + run.total_files + " files";
-                                            font-size: Theme.text_xs;
-                                            color: Theme.text_secondary;
-                                        }
-                                    }
-                                }
+
+                                UtilityProgress { progress: run.percent_complete / 100.0; }
+                                Text { text: run.completed_files + " of " + run.total_files + " files • " + run.percent_complete + "%"; color: Theme.text_secondary; font-family: Theme.font_family; font-size: Theme.text_xs; }
                             }
                         }
                     }

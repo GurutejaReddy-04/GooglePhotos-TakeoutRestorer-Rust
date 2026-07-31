@@ -9,8 +9,6 @@ pub struct WindowState {
     pub x: f32,
     pub y: f32,
     pub is_maximized: bool,
-    pub theme: String,
-    pub recent_projects: Vec<String>,
 }
 
 impl Default for WindowState {
@@ -21,8 +19,6 @@ impl Default for WindowState {
             x: 100.0,
             y: 100.0,
             is_maximized: false,
-            theme: "dark".to_string(),
-            recent_projects: Vec::new(),
         }
     }
 }
@@ -45,7 +41,9 @@ impl WindowState {
         let path = Self::get_config_path();
         if path.exists() {
             if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(state) = serde_json::from_str(&data) {
+                if let Ok(mut state) = serde_json::from_str::<Self>(&data) {
+                    state.width = state.width.max(600.0);
+                    state.height = state.height.max(450.0);
                     return state;
                 }
             }

@@ -1,5 +1,5 @@
 use shared_ui::ProcessingSnapshot as CoreProcessingSnapshot;
-use slint::{ComponentHandle, ModelRc, VecModel, Weak};
+use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 use std::rc::Rc;
 
 use crate::{MainWindow, Theme};
@@ -44,26 +44,29 @@ pub fn update_ui_from_snapshot(ui_handle: &Weak<MainWindow>, snapshot: &CoreProc
                 is_finished,
                 is_paused,
                 is_processing: snapshot_clone.is_processing,
+                terminal_state: snapshot_clone.terminal_state.clone().into(),
+                fatal_error_message: snapshot_clone.fatal_error_message.clone().into(),
                 results: {
-                    let mut mapped = Vec::new();
-                    for res in &snapshot_clone.results {
-                        mapped.push(crate::FileResult {
-                            filename: res.filename.clone().into(),
-                            status: res.status.clone().into(),
-                            destination: res.destination.clone().into(),
-                            timestamp: res.timestamp.clone().into(),
-                            media_type: res.media_type.clone().into(),
-                            error: res.error.clone().into(),
-                        });
+                    let prev_results = ui.get_processing().results;
+                    if is_finished
+                        || !snapshot_clone.is_processing
+                        || prev_results.row_count() != snapshot_clone.results.len()
+                    {
+                        let mut mapped = Vec::with_capacity(snapshot_clone.results.len());
+                        for res in &snapshot_clone.results {
+                            mapped.push(crate::FileResult {
+                                filename: res.filename.clone().into(),
+                                status: res.status.clone().into(),
+                                destination: res.destination.clone().into(),
+                                timestamp: res.timestamp.clone().into(),
+                                media_type: res.media_type.clone().into(),
+                                error: res.error.clone().into(),
+                            });
+                        }
+                        slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(mapped)))
+                    } else {
+                        prev_results
                     }
-                    slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(mapped)))
-                },
-                live_logs: {
-                    let mut logs = Vec::new();
-                    for log in &snapshot_clone.live_logs {
-                        logs.push(log.clone().into());
-                    }
-                    slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(logs)))
                 },
             });
             // Map recent runs
@@ -133,14 +136,19 @@ pub fn update_ui_from_snapshot(ui_handle: &Weak<MainWindow>, snapshot: &CoreProc
                 output_mode: settings.output_mode.clone().into(),
                 high_performance: settings.high_performance,
                 theme: settings.theme.clone().into(),
+                sidebar_width: settings.sidebar_width as i32,
             });
 
-            let is_dark = match settings.theme.as_str() {
-                "Light" => false,
-                "Dark" => true,
-                _ => crate::detect_system_dark_mode(),
-            };
-            ui.global::<Theme>().set_is_dark_mode(is_dark);
+            ui.global::<Theme>()
+                .set_preference(crate::normalize_theme_preference(&settings.theme).into());
+            ui.set_fatal_error_message(snapshot_clone.fatal_error_message.clone().into());
+            ui.set_show_fatal_error(!snapshot_clone.fatal_error_message.is_empty());
+
+            if snapshot_clone.is_finished {
+                ui.set_active_tab(2);
+            } else if snapshot_clone.is_processing {
+                ui.set_active_tab(1);
+            }
         }
     });
 }

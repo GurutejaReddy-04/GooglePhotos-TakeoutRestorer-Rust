@@ -1,0 +1,62 @@
+import { Theme } from "Theme.slint";
+
+export component SecondaryButton inherits Rectangle {
+    in property <string> text: "";
+    in property <string> icon: "";
+    in property <bool> enabled: true;
+
+    callback clicked();
+
+    height: Theme.control_height;
+    background: !root.enabled ? Theme.bg_subtle :
+                (touch.pressed ? Theme.bg_hover :
+                (touch.has-hover ? Theme.bg_hover : Theme.bg_surface));
+    border-radius: Theme.radius_md;
+    border-width: focus_scope.has-focus ? 2px : 1px;
+    border-color: focus_scope.has-focus ? Theme.border_focus : Theme.border_subtle;
+
+    animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+    animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    forward-focus: focus_scope;
+    focus_scope := FocusScope {
+        key-pressed(e) => {
+            if (root.enabled && (e.text == " " || e.text == "\n")) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space_3;
+        padding-right: Theme.space_3;
+        spacing: Theme.space_2;
+        alignment: center;
+
+        if (root.icon != ""): Text {
+            text: root.icon;
+            color: !root.enabled ? Theme.text_disabled : Theme.text_primary;
+            font-size: Theme.text_sm;
+            font-weight: Theme.font_weight_semibold;
+            font-family: Theme.font_family;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.text;
+            color: !root.enabled ? Theme.text_disabled : Theme.text_primary;
+            font-size: Theme.text_sm;
+            font-weight: Theme.font_weight_medium;
+            font-family: Theme.font_family;
+            vertical-alignment: center;
+        }
+    }
+}

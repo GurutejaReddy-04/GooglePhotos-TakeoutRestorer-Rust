@@ -1,0 +1,217 @@
+import { Theme } from "Theme.slint";
+
+export component OutputModeSelector inherits Rectangle {
+    in property <string> output_mode: "copy"; // "copy" or "in-place"
+    in property <bool> enabled: true;
+
+    callback mode_changed(string);
+
+    forward-focus: focus_scope;
+    focus_scope := FocusScope {
+        key-pressed(e) => {
+            if (root.enabled && (e.text == " " || e.text == "\n")) {
+                root.mode_changed(root.output_mode == "copy" ? "in-place" : "copy");
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    VerticalLayout {
+        spacing: Theme.space_2;
+
+        VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: "❷ Output Mode";
+                color: root.enabled ? Theme.text_primary : Theme.text_disabled;
+                font-family: Theme.font_family;
+                font-size: Theme.text_xs;
+                font-weight: Theme.font_weight_bold;
+            }
+            Text {
+                text: "Select how restored media files should be saved";
+                color: Theme.text_secondary;
+                font-family: Theme.font_family;
+                font-size: 11px;
+            }
+        }
+
+        VerticalLayout {
+            spacing: Theme.space_2;
+
+            // Option Card 1: Copy Mode
+            Rectangle {
+                height: 56px;
+                background: root.output_mode == "copy" ? Theme.accent_soft :
+                            (copy_touch.has-hover && root.enabled ? Theme.bg_hover : Theme.bg_surface);
+                border-radius: Theme.radius_md;
+                border-width: focus_scope.has-focus && root.output_mode == "copy" ? 2px : (root.output_mode == "copy" ? 2px : 1px);
+                border-color: focus_scope.has-focus && root.output_mode == "copy" ? Theme.border_focus : (root.output_mode == "copy" ? Theme.accent_primary : Theme.border_subtle);
+
+                animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+                animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
+
+                copy_touch := TouchArea {
+                    enabled: root.enabled;
+                    mouse-cursor: root.enabled ? pointer : default;
+                    clicked => { root.mode_changed("copy"); }
+                }
+
+                HorizontalLayout {
+                    padding-left: Theme.space_3;
+                    padding-right: Theme.space_3;
+                    spacing: Theme.space_3;
+
+                    Image {
+                        source: @image-url("../../assets/icons/copy.svg");
+                        width: 20px;
+                        height: 20px;
+                        colorize: root.output_mode == "copy" ? Theme.accent_primary : Theme.text_primary;
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 1px;
+
+                        HorizontalLayout {
+                            spacing: Theme.space_1;
+                            Text {
+                                text: "Copy Restored Files";
+                                color: root.output_mode == "copy" ? Theme.accent_primary : Theme.text_primary;
+                                font-family: Theme.font_family;
+                                font-size: Theme.text_xs;
+                                font-weight: Theme.font_weight_bold;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: "(Recommended)";
+                                color: Theme.accent_primary;
+                                font-family: Theme.font_family;
+                                font-size: 10px;
+                                font-weight: Theme.font_weight_bold;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Text {
+                            text: "Creates restored copies inside destination folder";
+                            color: Theme.text_secondary;
+                            font-family: Theme.font_family;
+                            font-size: 10px;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    // Radio indicator (Dead-Centered)
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 9px;
+                            border-width: 2px;
+                            border-color: root.output_mode == "copy" ? Theme.accent_primary : Theme.border_subtle;
+                            background: transparent;
+
+                            if (root.output_mode == "copy"): VerticalLayout {
+                                alignment: center;
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 8px;
+                                        height: 8px;
+                                        border-radius: 4px;
+                                        background: Theme.accent_primary;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Option Card 2: In-place Mode
+            Rectangle {
+                height: 56px;
+                background: root.output_mode == "in-place" ? Theme.accent_soft :
+                            (inplace_touch.has-hover && root.enabled ? Theme.bg_hover : Theme.bg_surface);
+                border-radius: Theme.radius_md;
+                border-width: focus_scope.has-focus && root.output_mode == "in-place" ? 2px : (root.output_mode == "in-place" ? 2px : 1px);
+                border-color: focus_scope.has-focus && root.output_mode == "in-place" ? Theme.border_focus : (root.output_mode == "in-place" ? Theme.accent_primary : Theme.border_subtle);
+
+                animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+                animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
+
+                inplace_touch := TouchArea {
+                    enabled: root.enabled;
+                    mouse-cursor: root.enabled ? pointer : default;
+                    clicked => { root.mode_changed("in-place"); }
+                }
+
+                HorizontalLayout {
+                    padding-left: Theme.space_3;
+                    padding-right: Theme.space_3;
+                    spacing: Theme.space_3;
+
+                    Image {
+                        source: @image-url("../../assets/icons/file-pen-line.svg");
+                        width: 20px;
+                        height: 20px;
+                        colorize: root.output_mode == "in-place" ? Theme.accent_primary : Theme.text_primary;
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        alignment: center;
+                        spacing: 1px;
+
+                        Text {
+                            text: "Modify Files In Place";
+                            color: root.output_mode == "in-place" ? Theme.accent_primary : Theme.text_primary;
+                            font-family: Theme.font_family;
+                            font-size: Theme.text_xs;
+                            font-weight: Theme.font_weight_bold;
+                            vertical-alignment: center;
+                        }
+
+                        Text {
+                            text: "Restores directly in Takeout. No destination required.";
+                            color: Theme.text_secondary;
+                            font-family: Theme.font_family;
+                            font-size: 10px;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    // Radio indicator (Dead-Centered)
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 9px;
+                            border-width: 2px;
+                            border-color: root.output_mode == "in-place" ? Theme.accent_primary : Theme.border_subtle;
+                            background: transparent;
+
+                            if (root.output_mode == "in-place"): VerticalLayout {
+                                alignment: center;
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 8px;
+                                        height: 8px;
+                                        border-radius: 4px;
+                                        background: Theme.accent_primary;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

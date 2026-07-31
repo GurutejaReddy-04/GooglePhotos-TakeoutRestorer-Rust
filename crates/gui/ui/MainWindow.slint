@@ -1,6 +1,8 @@
 import { Theme } from "components/Theme.slint";
 export { Theme }
 import { UtilityButton } from "components/UtilityButton.slint";
+import { ThemeSwitcher } from "components/ThemeSwitcher.slint";
+import { CollapsibleSection } from "components/CollapsibleSection.slint";
 import { WelcomePage, PastRun } from "WelcomePage.slint";
 import { ImportPage } from "ImportPage.slint";
 import { DestinationPage } from "DestinationPage.slint";
@@ -20,6 +22,10 @@ export component MainWindow inherits Window {
 
     in-out property <int> current_step: 0;
     in-out property <string> import_error: "";
+    in-out property <int> active_tab: 0;
+    in-out property <string> action_feedback: "";
+    in-out property <bool> action_feedback_is_error: false;
+    in property <string> os_platform: "windows";
     
     // UI state 
     property <bool> next_button_enabled: 
@@ -31,6 +37,8 @@ export component MainWindow inherits Window {
         
     in property <bool> back_button_enabled: current_step > 0 && current_step < 5 && !processing.is_processing;
     in property <string> next_button_text: current_step == 4 ? "Finish" : "Next Step ";
+    in-out property <string> pending_delete_run_id: "";
+    in-out property <string> pending_delete_run_title: "";
     in property <bool> show_fatal_error: false;
     in property <string> fatal_error_message: "";
     
@@ -46,6 +54,8 @@ export component MainWindow inherits Window {
     callback shutdown_requested();
     callback resume_run_clicked(string);
     callback delete_run_clicked(string);
+    callback delete_run_confirmed(string);
+    callback clear_all_runs_confirmed();
     callback recover_run_clicked(string);
     callback select_zip_files();
     callback select_folders();
@@ -97,33 +107,9 @@ export component MainWindow inherits Window {
                         vertical-alignment: center;
                     }
                     
-                    Text {
-                        text: "Theme:";
-                        font-size: 12px;
-                        color: Theme.text_secondary;
-                        vertical-alignment: center;
-                    }
-                    
-                    // Simple theme toggle placeholder for now
-                    TouchArea {
-                        width: 90px;
-                        Rectangle {
-                            border-radius: 6px;
-                            border-width: 1px;
-                            border-color: Theme.border_subtle;
-                            background: Theme.bg_surface;
-                            Text {
-                                text: Theme.is-dark-mode ? "🌙 Dark" : "☀️ Light";
-                                color: Theme.text_primary;
-                                font-size: 12px;
-                                font-weight: 700;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
-                        clicked => {
-                            root.change_theme(root.settings.theme == "Dark" ? "Light" : (root.settings.theme == "Light" ? "System" : "Dark"));
-                        }
+                    ThemeSwitcher {
+                        theme: root.settings.theme;
+                        change_theme(t) => { root.change_theme(t); }
                     }
                 }
             }

@@ -1,0 +1,122 @@
+import { Theme } from "Theme.slint";
+
+export component ThemeSwitcher inherits Rectangle {
+    in property <string> theme: "System"; // "System", "Light", "Dark"
+    callback change_theme(string);
+
+    height: 28px;
+    background: Theme.bg_subtle;
+    border-radius: Theme.radius_md;
+    border-width: 1px;
+    border-color: Theme.border_subtle;
+
+    HorizontalLayout {
+        padding: 2px;
+        spacing: 2px;
+
+        // Light Segment
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.theme == "Light" ? Theme.bg_surface : transparent;
+            border-radius: Theme.radius_sm;
+            border-width: root.theme == "Light" ? 1px : 0px;
+            border-color: Theme.border_subtle;
+
+            animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.change_theme("Light"); }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    Image {
+                        source: @image-url("../../assets/icons/sun.svg");
+                        width: 14px;
+                        height: 14px;
+                        colorize: root.theme == "Light" ? Theme.text_primary : Theme.text_secondary;
+                    }
+                    Text {
+                        text: "Light";
+                        color: root.theme == "Light" ? Theme.text_primary : Theme.text_secondary;
+                        font-family: Theme.font_family;
+                        font-size: 11px;
+                        font-weight: root.theme == "Light" ? Theme.font_weight_bold : Theme.font_weight_medium;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // System Segment
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.theme == "System" ? Theme.bg_surface : transparent;
+            border-radius: Theme.radius_sm;
+            border-width: root.theme == "System" ? 1px : 0px;
+            border-color: Theme.border_subtle;
+
+            animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.change_theme("System"); }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    Image {
+                        source: @image-url("../../assets/icons/monitor.svg");
+                        width: 14px;
+                        height: 14px;
+                        colorize: root.theme == "System" ? Theme.text_primary : Theme.text_secondary;
+                    }
+                    Text {
+                        text: "System";
+                        color: root.theme == "System" ? Theme.text_primary : Theme.text_secondary;
+                        font-family: Theme.font_family;
+                        font-size: 11px;
+                        font-weight: root.theme == "System" ? Theme.font_weight_bold : Theme.font_weight_medium;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Dark Segment
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.theme == "Dark" ? Theme.bg_surface : transparent;
+            border-radius: Theme.radius_sm;
+            border-width: root.theme == "Dark" ? 1px : 0px;
+            border-color: Theme.border_subtle;
+
+            animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.change_theme("Dark"); }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    Image {
+                        source: @image-url("../../assets/icons/moon.svg");
+                        width: 14px;
+                        height: 14px;
+                        colorize: root.theme == "Dark" ? Theme.text_primary : Theme.text_secondary;
+                    }
+                    Text {
+                        text: "Dark";
+                        color: root.theme == "Dark" ? Theme.text_primary : Theme.text_secondary;
+                        font-family: Theme.font_family;
+                        font-size: 11px;
+                        font-weight: root.theme == "Dark" ? Theme.font_weight_bold : Theme.font_weight_medium;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

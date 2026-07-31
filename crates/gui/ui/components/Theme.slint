@@ -1,71 +1,112 @@
 import { Palette } from "std-widgets.slint";
+import "../../assets/fonts/Inter-Regular.ttf";
+import "../../assets/fonts/Inter-Medium.ttf";
+import "../../assets/fonts/Inter-SemiBold.ttf";
+import "../../assets/fonts/Inter-Bold.ttf";
 
 export global Theme {
-    // Determine dark mode natively via OS palette, can be overridden if needed.
-    in property <bool> is_dark_mode: Palette.color-scheme == ColorScheme.dark;
+    // `preference` is the persisted user choice. The effective dark-mode value is
+    // derived here so every platform uses Slint's native palette detection for
+    // the System option.
+    in property <string> preference: "System";
+    in property <bool> system_is_dark: Palette.color-scheme == ColorScheme.dark;
+    out property <bool> is_dark_mode: preference == "Dark" ? true :
+                                      (preference == "Light" ? false : system_is_dark);
+    in property <bool> prefers_reduced_motion: false;
 
     // --- COLORS ---
-    
-    // Backgrounds (Deepest to highest)
-    out property <color> bg_app: is_dark_mode ? #0A0A0A : #F4F4F5;
-    out property <color> bg_panel: is_dark_mode ? #111111 : #FFFFFF;
-    out property <color> bg_surface: is_dark_mode ? #1A1A1A : #FAFAFA;
-    out property <color> bg_hover: is_dark_mode ? #262626 : #F4F4F5;
-    out property <color> bg_subtle: is_dark_mode ? #27272A : #E4E4E7;
+    // Surfaces are deliberately calm. The blue accent is reserved for focus,
+    // selection, and the single primary action on each screen.
+    out property <color> bg_app: is_dark_mode ? #1E1E20 : #F3F3F5;
+    out property <color> bg_panel: is_dark_mode ? #252529 : #FFFFFF;
+    out property <color> bg_surface: is_dark_mode ? #2A2A2E : #FFFFFF;
+    out property <color> bg_elevated: is_dark_mode ? #323236 : #FFFFFF;
+    out property <color> bg_hover: is_dark_mode ? #3A3A3F : #E5E5EB;
+    out property <color> bg_subtle: is_dark_mode ? #2C2C30 : #EAEAEF;
+
+    // Tokens alias matching standard Slint Minimalist design language
+    out property <color> primary: accent_primary;
+    out property <color> primary_hover: accent_primary_hover;
+    out property <color> background: bg_app;
+    out property <color> surface: bg_surface;
+    out property <color> border: border_subtle;
+    out property <color> text_main: text_primary;
+    out property <color> text_muted: text_secondary;
 
     // Text
-    out property <color> text_primary: is_dark_mode ? #EDEDED : #18181B;
-    out property <color> text_secondary: is_dark_mode ? #A1A1AA : #71717A;
-    out property <color> text_disabled: is_dark_mode ? #52525B : #A1A1AA;
-    out property <color> text_inverted: is_dark_mode ? #0A0A0A : #FFFFFF;
+    out property <color> text_primary: is_dark_mode ? #F5F7FB : #172033;
+    out property <color> text_secondary: is_dark_mode ? #AAB5C6 : #5A677A;
+    out property <color> text_disabled: is_dark_mode ? #667286 : #94A0B1;
+    out property <color> text_inverted: #FFFFFF;
 
     // Borders
-    out property <color> border_subtle: is_dark_mode ? #27272A : #E4E4E7;
-    out property <color> border_focus: is_dark_mode ? #E4E4E7 : #18181B;
+    out property <color> border_subtle: is_dark_mode ? #3F3F46 : #D4D4D8;
+    out property <color> border_strong: is_dark_mode ? #52525B : #A1A1AA;
+    out property <color> border_focus: is_dark_mode ? #8AB8FF : #2563EB;
 
     // Semantics (Same in light/dark for consistency, slight lightness tweaks)
-    out property <color> status_error: is_dark_mode ? #EF4444 : #DC2626;
-    out property <color> status_success: is_dark_mode ? #10B981 : #059669;
-    out property <color> status_warning: is_dark_mode ? #F59E0B : #D97706;
-    out property <color> status_info: is_dark_mode ? #3B82F6 : #2563EB;
+    out property <color> status_error: is_dark_mode ? #FF8B94 : #C52535;
+    out property <color> status_success: is_dark_mode ? #54D39A : #087F5B;
+    out property <color> status_warning: is_dark_mode ? #F7C66E : #A15C00;
+    out property <color> status_info: is_dark_mode ? #8AB8FF : #2563EB;
 
-    // Primary Accents (Monochrome high-contrast)
-    out property <color> accent_primary: is_dark_mode ? #EDEDED : #18181B;
-    out property <color> accent_primary_hover: is_dark_mode ? #D4D4D8 : #27272A;
-    out property <color> accent_primary_disabled: is_dark_mode ? #3F3F46 : #E4E4E7;
+    out property <color> accent_primary: is_dark_mode ? #6EA8FE : #2563EB;
+    out property <color> accent_primary_hover: is_dark_mode ? #8AB8FF : #1D4ED8;
+    out property <color> accent_primary_disabled: is_dark_mode ? #344867 : #B9D0FA;
+    out property <color> accent_soft: is_dark_mode ? #1E3558 : #E6F0FF;
+    out property <color> text_on_accent: is_dark_mode ? #0E172A : #FFFFFF;
+    out property <color> text_on_danger: is_dark_mode ? #2A0A10 : #FFFFFF;
 
     // --- TYPOGRAPHY ---
     // Note: Sizes in px scale logically in Slint.
-    out property <string> font_family: "system-ui, -apple-system, sans-serif";
+    out property <string> font_family: "Inter, sans-serif";
     
+    out property <length> font_caption: 11px;
+    out property <length> font_body: 13px;
+    out property <length> font_subtitle: 16px;
+    out property <length> font_title: 20px;
+
     out property <length> text_xs: 11px;
     out property <length> text_sm: 12px;
     out property <length> text_base: 14px;
     out property <length> text_lg: 16px;
     out property <length> text_xl: 20px;
     out property <length> text_2xl: 24px;
+    out property <length> text_display: 30px;
 
     out property <int> font_weight_medium: 500;
     out property <int> font_weight_semibold: 600;
     out property <int> font_weight_bold: 700;
 
     // --- SPACING ---
+    out property <length> space_xs: 4px;
+    out property <length> space_sm: 8px;
+    out property <length> space_md: 16px;
+    out property <length> space_lg: 24px;
+    out property <length> space_xl: 32px;
+
     out property <length> space_1: 4px;
     out property <length> space_2: 8px;
     out property <length> space_3: 12px;
     out property <length> space_4: 16px;
+    out property <length> space_5: 20px;
     out property <length> space_6: 24px;
     out property <length> space_8: 32px;
+    out property <length> space_10: 40px;
 
     // --- RADII ---
     out property <length> radius_sm: 4px;
-    out property <length> radius_md: 6px;
+    out property <length> radius_md: 8px;
+    out property <length> radius_lg: 12px;
     out property <length> radius_full: 9999px;
 
     // --- LAYOUT ---
     out property <length> list_item_height: 48px;
+    out property <length> control_height: 32px;
+    out property <length> compact_control_height: 28px;
+    out property <length> content_max_width: 1200px;
 
     // --- MOTION ---
-    out property <duration> duration_fast: 100ms;
-    out property <duration> duration_normal: 200ms;
+    out property <duration> duration_fast: prefers_reduced_motion ? 0ms : 150ms;
+    out property <duration> duration_normal: prefers_reduced_motion ? 0ms : 200ms;
 }

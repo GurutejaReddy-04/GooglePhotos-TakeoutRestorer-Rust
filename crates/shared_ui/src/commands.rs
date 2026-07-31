@@ -1,4 +1,3 @@
-
 /// Commands expressing user intent.
 /// Frontends dispatch these commands rather than invoking Core directly.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +21,7 @@ pub enum UiCommand {
     ResetState,
     ResumeRun(String),
     DeleteRun(String),
+    ClearAllRuns,
     RecoverRun(String),
 
     Shutdown,

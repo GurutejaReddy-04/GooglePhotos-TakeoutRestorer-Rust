@@ -1,7 +1,7 @@
 use crate::view_models::{ProcessingSnapshot, ProcessingViewModelBuilder, SnapshotPolicy};
 use crate::watch;
 use core::events::AppEvent;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::Instant;
 
@@ -24,31 +24,54 @@ impl ViewModelUpdater {
             let mut builder = ProcessingViewModelBuilder::new();
             let mut last_publish = Instant::now();
 
-            for event in event_rx {
-                let is_terminal = matches!(
-                    event,
-                    AppEvent::RunCompleted { .. } | AppEvent::CancellationAcknowledged
-                );
-                let is_phase_change = matches!(event, AppEvent::ProcessingPhaseStarted { .. });
+            loop {
+                let timeout = std::time::Duration::from_millis(250);
+                match event_rx.recv_timeout(timeout) {
+                    Ok(event) => {
+                        let is_terminal = matches!(
+                            event,
+                            AppEvent::RunCompleted { .. } | AppEvent::CancellationAcknowledged
+                        );
+                        let is_phase_change =
+                            matches!(event, AppEvent::ProcessingPhaseStarted { .. });
+                        let is_ui_state_change = matches!(
+                            event,
+                            AppEvent::ConfigChanged(_)
+                                | AppEvent::RecentRunsLoaded(_)
+                                | AppEvent::DestinationValidated(_)
+                                | AppEvent::ResultsFilterChanged { .. }
+                        );
 
-                builder.apply_event(event);
+                        builder.apply_event(event);
 
-                let should_publish = match policy {
-                    SnapshotPolicy::Immediate => true,
-                    SnapshotPolicy::Debounced(duration) => {
-                        is_terminal || is_phase_change || last_publish.elapsed() >= duration
+                        let should_publish = match policy {
+                            SnapshotPolicy::Immediate => true,
+                            SnapshotPolicy::Debounced(duration) => {
+                                is_terminal
+                                    || is_phase_change
+                                    || is_ui_state_change
+                                    || last_publish.elapsed() >= duration
+                            }
+                            SnapshotPolicy::Manual => is_terminal,
+                        };
+
+                        if should_publish {
+                            let snapshot = builder.build_snapshot();
+                            tx.send(snapshot);
+                            last_publish = Instant::now();
+                        }
                     }
-                    SnapshotPolicy::Manual => is_terminal,
-                };
-
-                if should_publish {
-                    let snapshot = builder.build_snapshot();
-                    tx.send(snapshot);
-                    last_publish = Instant::now();
+                    Err(RecvTimeoutError::Timeout) => {
+                        if builder.is_processing && last_publish.elapsed() >= timeout {
+                            let snapshot = builder.build_snapshot();
+                            tx.send(snapshot);
+                            last_publish = Instant::now();
+                        }
+                    }
+                    Err(RecvTimeoutError::Disconnected) => {
+                        break;
+                    }
                 }
-
-                // Note: The loop will naturally exit when the `event_rx` channel is closed,
-                // which happens on application shutdown when the Broadcaster is dropped.
             }
         });
 

@@ -6,6 +6,16 @@ export struct DestinationValidation {
     message: string,
 }
 
+export struct PastRun {
+    id: string,
+    title: string,
+    last_active: string,
+    percent_complete: int,
+    completed_files: int,
+    total_files: int,
+    has_recovery_data: bool,
+}
+
 export struct SettingsSnapshot {
     destination_path: string,
     destination_validation: DestinationValidation,
@@ -16,6 +26,7 @@ export struct SettingsSnapshot {
     output_mode: string,
     high_performance: bool,
     theme: string,
+    sidebar_width: int,
 }
 
 export struct FileResult {
@@ -47,6 +58,7 @@ export struct ProcessingSnapshot {
     is_finished: bool,
     is_paused: bool,
     is_processing: bool,
+    terminal_state: string,
+    fatal_error_message: string,
     results: [FileResult],
-    live_logs: [string],
 }

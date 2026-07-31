@@ -1,0 +1,40 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "Theme.slint";
+
+export component SearchField inherits Rectangle {
+    in-out property <string> text: "";
+    in property <string> placeholder: "Filter by filename...";
+    
+    callback edited(string);
+
+    height: Theme.control_height;
+    background: Theme.bg_surface;
+    border-radius: Theme.radius_md;
+    border-width: 1px;
+    border-color: focus_scope.has-focus ? Theme.border_focus : Theme.border_subtle;
+
+    animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    HorizontalLayout {
+        padding-left: Theme.space_3;
+        padding-right: Theme.space_2;
+        spacing: Theme.space_2;
+
+        Text {
+            text: "🔍";
+            color: Theme.text_secondary;
+            font-size: Theme.text_xs;
+            vertical-alignment: center;
+        }
+
+        focus_scope := LineEdit {
+            horizontal-stretch: 1;
+            text: root.text;
+            placeholder-text: root.placeholder;
+            edited(t) => {
+                root.text = t;
+                root.edited(t);
+            }
+        }
+    }
+}

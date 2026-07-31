@@ -1,0 +1,72 @@
+import { Theme } from "Theme.slint";
+
+export component PrimaryButton inherits Rectangle {
+    in property <string> text: "";
+    in property <string> icon: "";
+    in property <bool> enabled: true;
+    in property <bool> loading: false;
+    
+    callback clicked();
+
+    height: Theme.control_height;
+    background: !root.enabled ? Theme.accent_primary_disabled :
+                (touch.pressed ? Theme.accent_primary_hover :
+                (touch.has-hover ? Theme.accent_primary_hover : Theme.accent_primary));
+    border-radius: Theme.radius_md;
+    border-width: focus_scope.has-focus ? 2px : 0px;
+    border-color: Theme.border_focus;
+
+    animate background { duration: Theme.duration_fast; easing: ease-in-out; }
+    animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
+
+    forward-focus: focus_scope;
+    focus_scope := FocusScope {
+        key-pressed(e) => {
+            if (root.enabled && (e.text == " " || e.text == "\n")) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled && !root.loading;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space_4;
+        padding-right: Theme.space_4;
+        spacing: Theme.space_2;
+        alignment: center;
+
+        if (root.icon != "" && !root.loading): Text {
+            text: root.icon;
+            color: Theme.text_on_accent;
+            font-size: Theme.text_base;
+            font-weight: Theme.font_weight_bold;
+            font-family: Theme.font_family;
+            vertical-alignment: center;
+        }
+
+        if (root.loading): Text {
+            text: "⟳";
+            color: Theme.text_on_accent;
+            font-size: Theme.text_base;
+            font-weight: Theme.font_weight_bold;
+            font-family: Theme.font_family;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.text;
+            color: Theme.text_on_accent;
+            font-size: Theme.text_sm;
+            font-weight: Theme.font_weight_semibold;
+            font-family: Theme.font_family;
+            vertical-alignment: center;
+        }
+    }
+}
