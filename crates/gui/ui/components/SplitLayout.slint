@@ -1,0 +1,21 @@
+import { SplitterHandle } from "SplitterHandle.slint";
+import { SetupPanel } from "SetupPanel.slint";
+import { WorkspaceCanvas } from "WorkspaceCanvas.slint";
+
+export component SplitLayout inherits Rectangle {
+    in-out property <int> left_panel_width: 340;
+    
+    HorizontalLayout {
+        SetupPanel {
+            width: root.left_panel_width * 1px;
+        }
+        SplitterHandle {
+            panel_width <=> root.left_panel_width;
+            min_panel_width: 240;
+            max_panel_width: 460;
+        }
+        WorkspaceCanvas {
+            horizontal-stretch: 1;
+        }
+    }
+}
