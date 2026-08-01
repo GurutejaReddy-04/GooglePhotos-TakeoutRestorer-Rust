@@ -32,6 +32,7 @@ const EXIFTOOL_URL: &str =
 #[cfg(not(target_os = "windows"))]
 const EXIFTOOL_SHA256: &str = "668ea3acececb7235fbd0f4900e72d5f12c9b07e5c778fd36cb1e9b5828fd65a";
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 const EXIFTOOL_EXECUTABLE: &str = "exiftool";
 #[cfg(not(target_os = "windows"))]
 const EXIFTOOL_FINAL_EXECUTABLE: &str = "exiftool";
