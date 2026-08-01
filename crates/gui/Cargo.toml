@@ -7,15 +7,12 @@ license.workspace = true
 
 [dependencies]
 shared_ui = { path = "../shared_ui" }
-app_core = { package = "core", path = "../core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 slint = { version = "1.2.0", features = ["renderer-winit-skia", "software-renderer-systemfonts"] }
 rfd = "0.12" # Native file picker
 directories.workspace = true
 arboard = "3.6.1"
-percent-encoding = "2.3.2"
-windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
 [build-dependencies]
 slint-build = "1.2"

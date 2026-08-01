@@ -2276,16 +2276,13 @@ name = "gui"
 version = "1.0.0"
 dependencies = [
  "arboard",
- "core",
  "directories",
- "percent-encoding",
  "rfd",
  "serde",
  "serde_json",
  "shared_ui",
  "slint",
  "slint-build",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
