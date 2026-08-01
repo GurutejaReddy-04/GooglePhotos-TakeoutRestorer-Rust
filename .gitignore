@@ -7,14 +7,38 @@ target/
 # IDE
 .vscode/
 .idea/
+*.code-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+._*
 
 # Logs
 *.log
 
-# Temporary
+# Temporary / backup / swap files
 *.tmp
 *.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# Packaging / distribution output
+dist/
+bundle/
+*.app/
+*.dmg
+*.msi
+*.deb
+*.AppImage
+
+# Android / iOS build artifacts (if ever added)
+.gradle/
+build/
+DerivedData/
+
+# Gemini / AI tool artifacts
+.gemini/
