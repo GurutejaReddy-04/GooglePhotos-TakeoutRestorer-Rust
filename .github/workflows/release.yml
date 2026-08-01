@@ -51,8 +51,8 @@ jobs:
 
     - name: Generate SBOM (CycloneDX)
       run: |
-        cargo install cargo-cyclonedx
-        cargo cyclonedx -f json --all -o bom-${{ matrix.target }}.json
+        cargo install cargo-cyclonedx --locked
+        cargo cyclonedx -f json --all
 
     - name: Run Packager
       run: cargo packager --release
@@ -63,4 +63,5 @@ jobs:
         name: ${{ matrix.artifact_name }}
         path: |
           target/${{ matrix.target }}/release/app*
-          bom-${{ matrix.target }}.json
+          *.cdx.json
+          *.json
