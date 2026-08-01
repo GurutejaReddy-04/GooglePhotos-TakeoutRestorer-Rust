@@ -18,7 +18,13 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Install Linux build dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev pkg-config
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -42,13 +48,13 @@ jobs:
     name: Security & License Audit
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install cargo-deny
-      uses: EmbarkStudios/cargo-deny-action@v1
-      
+      uses: EmbarkStudios/cargo-deny-action@v2
+
     - name: Install cargo-audit
       run: cargo install cargo-audit
-      
+
     - name: Run cargo-audit
       run: cargo audit

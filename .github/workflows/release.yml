@@ -23,7 +23,13 @@ jobs:
             artifact_name: restorer-macos-x86_64
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Install Linux build dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev pkg-config
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -36,7 +42,7 @@ jobs:
 
     - name: Build Release Binary
       run: cargo build --release --target ${{ matrix.target }}
-      
+
     - name: Generate SBOM (CycloneDX)
       run: |
         cargo install cargo-cyclonedx
@@ -46,7 +52,7 @@ jobs:
       run: cargo packager --release
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
         path: |
