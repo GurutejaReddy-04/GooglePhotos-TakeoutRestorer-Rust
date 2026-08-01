@@ -12,23 +12,24 @@ use tracing::{debug, error, info};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const TIMEOUT_SECS: u64 = 30;
 
 static SPAWNED_PIDS: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
 
 pub fn cleanup_all_processes() {
-    let pids = match SPAWNED_PIDS.lock() {
-        Ok(guard) => guard.clone(),
-        Err(_) => return,
-    };
-
-    if pids.is_empty() {
-        return;
-    }
-
     #[cfg(windows)]
     {
+        let pids = match SPAWNED_PIDS.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => return,
+        };
+
+        if pids.is_empty() {
+            return;
+        }
+
         for pid in pids {
             let _ = std::process::Command::new("taskkill")
                 .args(["/F", "/T", "/PID", &pid.to_string()])
@@ -101,12 +102,15 @@ impl ExifToolEngine {
 
         debug!("Starting ExifTool persistent process");
 
-        let mut cmd = if cfg!(windows) {
+        #[cfg(windows)]
+        let mut cmd = {
             let mut c = Command::new(&self.binary_path);
-            #[cfg(windows)]
             c.creation_flags(CREATE_NO_WINDOW);
             c
-        } else {
+        };
+
+        #[cfg(not(windows))]
+        let mut cmd = {
             let is_perl_script = self
                 .binary_path
                 .extension()
