@@ -1,5 +1,5 @@
 [advisories]
-vulnerabilities = "deny"
+vulnerability = "deny"
 unmaintained = "warn"
 notice = "warn"
 ignore = []
