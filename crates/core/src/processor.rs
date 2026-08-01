@@ -412,9 +412,13 @@ impl<'a> Processor<'a> {
                                         parsed_meta.is_some(),
                                     );
 
-                                    let bytes_written = std::fs::metadata(&final_path)
-                                        .map(|m| m.len())
-                                        .unwrap_or(0);
+                                    let bytes_written = if media.size > 0 {
+                                         media.size as u64
+                                     } else {
+                                         std::fs::metadata(&final_path)
+                                             .map(|m| m.len())
+                                             .unwrap_or(0)
+                                     };
                                     if let Err(db_err) = self
                                         .db
                                         .enqueue_status_update(StatusUpdate::Completed(media.id))
@@ -923,9 +927,7 @@ impl<'a> Processor<'a> {
         }
 
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
-        if !dest_dir.exists() {
-            let _ = fs::create_dir_all(&dest_dir);
-        }
+        let _ = fs::create_dir_all(&dest_dir);
 
         let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let dest_path = resolve_collision(&dest_dir, current_path);
