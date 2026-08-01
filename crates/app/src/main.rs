@@ -1,3 +1,9 @@
+//! Google Photos Takeout Restorer - Main Binary Entry Point
+//! CLI and GUI launcher for Google Photos Takeout metadata restoration.
+//!
+//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
+//! Open Source Software released under MIT / Apache-2.0 License.
+
 use app_core::config::Config;
 use app_core::events::{AppEvent, Broadcaster, EventPublisher};
 use app_core::logger::init_logging;

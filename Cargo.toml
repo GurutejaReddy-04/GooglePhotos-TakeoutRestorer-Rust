@@ -11,7 +11,7 @@ resolver = "2"
 [workspace.package]
 version = "1.0.0"
 edition = "2021"
-authors = ["Takeout Restorer Team"]
+authors = ["Guruteja Reddy Nallachi <159574479+GurutejaReddy-04@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]

@@ -40,5 +40,14 @@ bundle/
 build/
 DerivedData/
 
+# Databases & Local State
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.lock
+state_*.db
+
 # Gemini / AI tool artifacts
 .gemini/

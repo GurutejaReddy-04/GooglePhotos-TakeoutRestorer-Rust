@@ -1,3 +1,9 @@
+//! Google Photos Takeout Restorer - Downloader Crate
+//! Automatic downloading and verification of platform-specific ExifTool binaries.
+//!
+//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
+//! Open Source Software released under MIT / Apache-2.0 License.
+
 use core::error::AppError;
 use sha2::{Digest, Sha256};
 use std::fs::File;
