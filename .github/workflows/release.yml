@@ -37,6 +37,11 @@ jobs:
         brew install exiftool
         rustup target add x86_64-apple-darwin
 
+    - name: Install Windows build dependencies
+      if: runner.os == 'Windows'
+      run: |
+        choco install exiftool
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       with:
