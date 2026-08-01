@@ -665,9 +665,10 @@ impl<'a> Processor<'a> {
                                         file_name.push(".partial");
                                         let temp_dest = dest.with_file_name(file_name);
 
-                                        let mut out_file = fs::File::create(&temp_dest)
+                                        let raw_file = fs::File::create(&temp_dest)
                                             .map_err(AppError::Io)?;
-                                        use std::io::Read;
+                                        let mut out_file = std::io::BufWriter::with_capacity(64 * 1024, raw_file);
+                                        use std::io::{Read, Write};
                                         const MAX_SAFE_FILE_SIZE: u64 = 20_000_000_000;
                                         let mut bounded_reader = zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
                                         let size =
@@ -676,6 +677,10 @@ impl<'a> Processor<'a> {
                                                     let _ = fs::remove_file(&temp_dest);
                                                     AppError::Io(e)
                                                 })?;
+                                        out_file.flush().map_err(|e| {
+                                            let _ = fs::remove_file(&temp_dest);
+                                            AppError::Io(e)
+                                        })?;
                                         drop(out_file);
 
                                         if size > MAX_SAFE_FILE_SIZE {
