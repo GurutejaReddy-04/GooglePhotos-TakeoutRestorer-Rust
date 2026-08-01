@@ -2,7 +2,7 @@
 //! Bridges UI command dispatching with core pipeline orchestration.
 //!
 //! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
-//! Open Source Software released under MIT / Apache-2.0 License.
+//! Open Source Software released under the MIT License.
 
 use app_core::config::{Config, OutputMode};
 use app_core::events::{AppEvent, Broadcaster, EventPublisher};

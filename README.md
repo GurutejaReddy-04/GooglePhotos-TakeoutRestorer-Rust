@@ -1,7 +1,7 @@
 # Google Photos Takeout Restorer
 
 [![CI Build](https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust/workflows/CI/badge.svg)](https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust/actions)
-[![License: MIT / Apache-2.0](https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#supported-platforms)
 
@@ -111,7 +111,7 @@ Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 ## 📜 License
 
-This project is dual-licensed under either the **MIT License** or **Apache License (Version 2.0)** at your option. See [LICENSE](LICENSE) for details.
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 

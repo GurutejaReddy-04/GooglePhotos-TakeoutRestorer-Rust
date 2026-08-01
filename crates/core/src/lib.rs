@@ -2,7 +2,7 @@
 //! High-performance Rust pipeline for restoring EXIF metadata to Google Photos Takeout archives.
 //!
 //! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
-//! Open Source Software released under MIT / Apache-2.0 License.
+//! Open Source Software released under the MIT License.
 
 pub mod auto_heal;
 pub mod config;
