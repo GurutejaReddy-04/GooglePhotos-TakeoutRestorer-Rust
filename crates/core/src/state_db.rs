@@ -1315,12 +1315,8 @@ mod tests {
         db.enqueue_status_update(StatusUpdate::Completed(file_id))
             .unwrap();
 
-        // The writer loop tries 15 times with exponential backoff (~32 seconds max).
-        // Since we don't want to wait 32 seconds in a unit test, we will just manually invoke the writer loop in a controlled way or use a very small timeout for tests.
-        // Wait, the writer loop takes 32s. To avoid stalling the test, we'll just check if `enqueue_status_update` starts failing after some time.
-        // Actually, for a unit test, waiting 32s is terrible.
-        // We can just trust the logic, or we can interrupt it. But since this test would hang the suite, maybe we skip the full wait and just check that it handles the Result correctly in processor.rs.
-        // I will not wait 32s. I will just verify `has_recovery_data` works if we create the file manually.
+        // Drop db to terminate writer loop cleanly
+        drop(db);
 
         // Let's create a fake recovery file and test apply_recovery_data
         let recovery_path = db_path.parent().unwrap().join("failed_batch.json");
@@ -1331,35 +1327,17 @@ mod tests {
         }];
         std::fs::write(&recovery_path, serde_json::to_string(&fake_data).unwrap()).unwrap();
 
-        assert!(db.has_recovery_data());
-
-        // Recreate table so apply can succeed
-        db.conn
-            .lock()
-            .unwrap()
-            .execute(
-                "CREATE TABLE media_files (
-                id INTEGER PRIMARY KEY,
-                path TEXT NOT NULL UNIQUE,
-                filename TEXT NOT NULL,
-                extension TEXT NOT NULL,
-                size INTEGER NOT NULL,
-                status INTEGER NOT NULL DEFAULT 0,
-                error_message TEXT,
-                taken_timestamp INTEGER
-            )",
-                [],
-            )
-            .unwrap();
-        db.conn.lock().unwrap().execute(
+        let db2 = StateDatabase::open(&db_path).unwrap();
+        db2.conn.lock().unwrap().execute(
             "INSERT INTO media_files (id, path, filename, extension, size, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![file_id, "R:b.jpg", "b.jpg", ".jpg", 100, FileStatus::Processing as u8],
         ).unwrap();
+        assert!(db2.has_recovery_data());
 
-        db.apply_recovery_data().unwrap();
+        db2.apply_recovery_data().unwrap();
 
-        assert!(!db.has_recovery_data());
-        let status: u8 = db
+        assert!(!db2.has_recovery_data());
+        let status: u8 = db2
             .conn
             .lock()
             .unwrap()
