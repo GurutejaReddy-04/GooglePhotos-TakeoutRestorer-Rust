@@ -251,19 +251,18 @@ impl ExifToolEngine {
             eprintln!("  [DEBUG][EXIFTOOL]   arg[{}] = '{}'", i, arg);
         }
 
+        let mut batch = String::with_capacity(args.len() * 64 + 16);
         for arg in args {
             let sanitized_arg = arg.replace(['\r', '\n'], " ");
-            if let Err(e) = writeln!(process_state.stdin, "{}", sanitized_arg) {
-                error!("Failed to write to ExifTool stdin: {}", e);
-                eprintln!("[DEBUG][EXIFTOOL] EXECUTE: stdin write FAILED: {}", e);
-                *process_guard = None; // Force restart next time
-                return Err(AppError::Io(e));
-            }
+            batch.push_str(&sanitized_arg);
+            batch.push('\n');
         }
-        if let Err(e) = writeln!(process_state.stdin, "-execute") {
-            error!("Failed to write execute command to ExifTool stdin: {}", e);
-            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: -execute write FAILED: {}", e);
-            *process_guard = None;
+        batch.push_str("-execute\n");
+
+        if let Err(e) = process_state.stdin.write_all(batch.as_bytes()) {
+            error!("Failed to write batch to ExifTool stdin: {}", e);
+            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: stdin batch write FAILED: {}", e);
+            *process_guard = None; // Force restart next time
             return Err(AppError::Io(e));
         }
         if let Err(e) = process_state.stdin.flush() {
