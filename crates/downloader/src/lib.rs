@@ -340,6 +340,9 @@ mod tests {
 
         builder.finish().unwrap();
 
+        // Explicitly drop builder to drop inner GzEncoder and File, flushing trailer to disk
+        drop(builder);
+
         // Perform extraction
         manager.extract_tar_gz(&archive_path).unwrap();
 
