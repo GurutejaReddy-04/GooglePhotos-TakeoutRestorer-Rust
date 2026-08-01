@@ -29,13 +29,17 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libfontconfig1-dev pkg-config
+        sudo apt-get install -y libfontconfig1-dev libglib2.0-dev libgtk-3-dev pkg-config
+
+    - name: Add macOS x86_64 target
+      if: runner.os == 'macOS'
+      run: rustup target add x86_64-apple-darwin
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: 1.75.0
-        target: ${{ matrix.target }}
+        targets: ${{ matrix.target }}
 
     - name: Install cargo-packager
       run: cargo install cargo-packager --locked
