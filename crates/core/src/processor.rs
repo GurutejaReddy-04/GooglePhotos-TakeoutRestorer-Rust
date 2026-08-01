@@ -219,7 +219,8 @@ impl<'a> Processor<'a> {
             let dbg_consumer_done = std::sync::Arc::new(AtomicBool::new(false));
             let dbg_last_completed_file = std::sync::Arc::new(Mutex::new(String::new()));
             let dbg_last_completed_id = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_outstanding_files = std::sync::Arc::new(Mutex::new(Vec::<(i64, String)>::new()));
+            let dbg_outstanding_files =
+                std::sync::Arc::new(Mutex::new(Vec::<(i64, String)>::new()));
 
             std::thread::scope(|s| {
                 let (tx, rx) = std::sync::mpsc::sync_channel(100);
@@ -597,7 +598,8 @@ impl<'a> Processor<'a> {
 
                     eprintln!(
                         "[DEBUG][PRODUCER] Processing archive: {} ({} files)",
-                        archive_path.display(), files.len()
+                        archive_path.display(),
+                        files.len()
                     );
 
                     let file_result = fs::File::open(&archive_path);

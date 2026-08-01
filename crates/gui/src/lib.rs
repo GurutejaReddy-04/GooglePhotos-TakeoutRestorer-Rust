@@ -3,7 +3,6 @@ slint::include_modules!();
 pub mod bindings;
 pub mod window_state;
 
-
 use std::sync::Arc;
 use std::thread;
 
@@ -258,8 +257,6 @@ impl GuiRunner {
                 let _ = dispatcher_clear.dispatch(UiCommand::SetInputPaths(input_paths));
             }
         });
-
-
 
         // Welcome Page Actions (Sprint 2)
         let ui_handle_resume = ui.as_weak();
@@ -533,4 +530,3 @@ mod tests {
         assert_eq!(normalize_theme_preference("unexpected"), "System");
     }
 }
-

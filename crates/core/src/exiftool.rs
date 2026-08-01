@@ -22,11 +22,11 @@ pub fn cleanup_all_processes() {
         Ok(guard) => guard.clone(),
         Err(_) => return,
     };
-    
+
     if pids.is_empty() {
         return;
     }
-    
+
     #[cfg(windows)]
     {
         for pid in pids {
@@ -170,17 +170,26 @@ impl ExifToolEngine {
             if let Err(e) = writeln!(ps.stdin, "-ver") {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -ver: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup write failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup write failed: {}",
+                    e
+                )));
             }
             if let Err(e) = writeln!(ps.stdin, "-execute") {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -execute: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup write failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup write failed: {}",
+                    e
+                )));
             }
             if let Err(e) = ps.stdin.flush() {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to flush: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup flush failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup flush failed: {}",
+                    e
+                )));
             }
 
             let warmup_timeout = Duration::from_secs(15);
@@ -263,7 +272,9 @@ impl ExifToolEngine {
             *process_guard = None;
             return Err(AppError::Io(e));
         }
-        eprintln!("[DEBUG][EXIFTOOL] EXECUTE: all args written + flushed, waiting for {{ready}}...");
+        eprintln!(
+            "[DEBUG][EXIFTOOL] EXECUTE: all args written + flushed, waiting for {{ready}}..."
+        );
 
         let mut output = String::new();
         let timeout = Duration::from_secs(TIMEOUT_SECS);
@@ -276,7 +287,8 @@ impl ExifToolEngine {
                     if trimmed == "{ready}" {
                         eprintln!(
                             "[DEBUG][EXIFTOOL] EXECUTE: got {{ready}} in {:?} | output_len={}",
-                            exec_start.elapsed(), output.len()
+                            exec_start.elapsed(),
+                            output.len()
                         );
                         break;
                     }
@@ -289,7 +301,8 @@ impl ExifToolEngine {
                     error!("ExifTool read timeout");
                     eprintln!(
                         "[DEBUG][EXIFTOOL] EXECUTE: TIMEOUT after {:?} | output_so_far='{}'",
-                        exec_start.elapsed(), output
+                        exec_start.elapsed(),
+                        output
                     );
                     *process_guard = None;
                     return Err(AppError::ExifToolLaunchFailed(
@@ -458,7 +471,8 @@ impl<'a> Drop for EngineGuard<'a> {
             let _ = self.sender.send(engine);
             eprintln!(
                 "[DEBUG][EXIFTOOL] RETURN | available_before_return={} | thread={:?}",
-                available_before, std::thread::current().id()
+                available_before,
+                std::thread::current().id()
             );
         }
     }
@@ -475,7 +489,11 @@ impl ExifToolPool {
             sender.send(engine).unwrap();
         }
 
-        Ok(Self { sender, receiver, pool_size })
+        Ok(Self {
+            sender,
+            receiver,
+            pool_size,
+        })
     }
 
     pub fn execute<F, R>(&self, f: F) -> Result<R, AppError>

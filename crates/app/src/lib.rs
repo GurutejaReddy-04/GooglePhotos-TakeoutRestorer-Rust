@@ -662,7 +662,7 @@ fn test_high_performance_off() {
     config.processing.high_performance = false;
     config.processing.max_workers = 2;
     assert!(!config.processing.high_performance);
-    
+
     let pool_size = if config.processing.high_performance {
         std::thread::available_parallelism()
             .map(|n| n.get())
@@ -670,6 +670,6 @@ fn test_high_performance_off() {
     } else {
         config.processing.max_workers.max(1)
     };
-    
+
     assert_eq!(pool_size, 2);
 }
