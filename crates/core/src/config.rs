@@ -141,9 +141,6 @@ impl Config {
             self.matching.levenshtein_threshold = 1;
         }
 
-        // Enforce Phase 4 sidebar boundaries
-        self.ui.sidebar_width = self.ui.sidebar_width.clamp(240, 460);
-
         let normalize_exts = |exts: &mut Vec<String>| {
             for ext in exts.iter_mut() {
                 let lower = ext.to_lowercase();
@@ -220,7 +217,6 @@ pub struct UiConfig {
     pub window_maximized: bool,
     pub window_x: Option<i32>,
     pub window_y: Option<i32>,
-    pub sidebar_width: u32,
 }
 
 impl Default for UiConfig {
@@ -232,7 +228,6 @@ impl Default for UiConfig {
             window_maximized: false,
             window_x: None,
             window_y: None,
-            sidebar_width: 340,
         }
     }
 }

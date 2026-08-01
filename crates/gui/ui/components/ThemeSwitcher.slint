@@ -5,7 +5,6 @@ export component ThemeSwitcher inherits Rectangle {
     callback change_theme(string);
 
     height: 28px;
-    width: 140px;
     background: Theme.bg_subtle;
     border-radius: Theme.radius_md;
     border-width: 1px;
@@ -32,12 +31,7 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Image {
-                        source: @image-url("../../assets/icons/sun.svg");
-                        width: 14px;
-                        height: 14px;
-                        colorize: root.theme == "Light" ? Theme.text_primary : Theme.text_secondary;
-                    }
+                    Text { text: "☀"; font-size: 11px; vertical-alignment: center; }
                     Text {
                         text: "Light";
                         color: root.theme == "Light" ? Theme.text_primary : Theme.text_secondary;
@@ -67,14 +61,9 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Image {
-                        source: @image-url("../../assets/icons/monitor.svg");
-                        width: 14px;
-                        height: 14px;
-                        colorize: root.theme == "System" ? Theme.text_primary : Theme.text_secondary;
-                    }
+                    Text { text: "◐"; font-size: 11px; vertical-alignment: center; }
                     Text {
-                        text: "System";
+                        text: "Auto";
                         color: root.theme == "System" ? Theme.text_primary : Theme.text_secondary;
                         font-family: Theme.font_family;
                         font-size: 11px;
@@ -102,12 +91,7 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Image {
-                        source: @image-url("../../assets/icons/moon.svg");
-                        width: 14px;
-                        height: 14px;
-                        colorize: root.theme == "Dark" ? Theme.text_primary : Theme.text_secondary;
-                    }
+                    Text { text: "🌙"; font-size: 11px; vertical-alignment: center; }
                     Text {
                         text: "Dark";
                         color: root.theme == "Dark" ? Theme.text_primary : Theme.text_secondary;

@@ -219,7 +219,8 @@ impl<'a> Processor<'a> {
             let dbg_consumer_done = std::sync::Arc::new(AtomicBool::new(false));
             let dbg_last_completed_file = std::sync::Arc::new(Mutex::new(String::new()));
             let dbg_last_completed_id = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_outstanding_files = std::sync::Arc::new(Mutex::new(Vec::<(i64, String)>::new()));
+            let dbg_outstanding_files =
+                std::sync::Arc::new(Mutex::new(Vec::<(i64, String)>::new()));
 
             std::thread::scope(|s| {
                 let (tx, rx) = std::sync::mpsc::sync_channel(100);
@@ -368,9 +369,18 @@ impl<'a> Processor<'a> {
                             let mut target_path = original_target_path.clone();
 
                             // Auto-heal: detect and fix mismatched file extensions
-                            if let Some(true_ext) =
+                            let is_non_standard = media.extension.is_empty()
+                                || media.extension == "."
+                                || !self.config.supported_image_extensions.contains(&media.extension)
+                                    && !self.config.supported_video_extensions.contains(&media.extension);
+
+                            let correction = if is_non_standard {
                                 crate::auto_heal::get_correction(&target_path, &media.extension)
-                            {
+                            } else {
+                                None
+                            };
+
+                            if let Some(true_ext) = correction {
                                 let mut proposed_path = target_path.clone();
                                 proposed_path.set_extension(true_ext.trim_start_matches('.'));
 
@@ -411,9 +421,13 @@ impl<'a> Processor<'a> {
                                         parsed_meta.is_some(),
                                     );
 
-                                    let bytes_written = std::fs::metadata(&final_path)
-                                        .map(|m| m.len())
-                                        .unwrap_or(0);
+                                    let bytes_written = if media.size > 0 {
+                                         media.size as u64
+                                     } else {
+                                         std::fs::metadata(&final_path)
+                                             .map(|m| m.len())
+                                             .unwrap_or(0)
+                                     };
                                     if let Err(db_err) = self
                                         .db
                                         .enqueue_status_update(StatusUpdate::Completed(media.id))
@@ -597,7 +611,8 @@ impl<'a> Processor<'a> {
 
                     eprintln!(
                         "[DEBUG][PRODUCER] Processing archive: {} ({} files)",
-                        archive_path.display(), files.len()
+                        archive_path.display(),
+                        files.len()
                     );
 
                     let file_result = fs::File::open(&archive_path);
@@ -663,9 +678,10 @@ impl<'a> Processor<'a> {
                                         file_name.push(".partial");
                                         let temp_dest = dest.with_file_name(file_name);
 
-                                        let mut out_file = fs::File::create(&temp_dest)
+                                        let raw_file = fs::File::create(&temp_dest)
                                             .map_err(AppError::Io)?;
-                                        use std::io::Read;
+                                        let mut out_file = std::io::BufWriter::with_capacity(64 * 1024, raw_file);
+                                        use std::io::{Read, Write};
                                         const MAX_SAFE_FILE_SIZE: u64 = 20_000_000_000;
                                         let mut bounded_reader = zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
                                         let size =
@@ -674,6 +690,10 @@ impl<'a> Processor<'a> {
                                                     let _ = fs::remove_file(&temp_dest);
                                                     AppError::Io(e)
                                                 })?;
+                                        out_file.flush().map_err(|e| {
+                                            let _ = fs::remove_file(&temp_dest);
+                                            AppError::Io(e)
+                                        })?;
                                         drop(out_file);
 
                                         if size > MAX_SAFE_FILE_SIZE {
@@ -916,9 +936,7 @@ impl<'a> Processor<'a> {
         }
 
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
-        if !dest_dir.exists() {
-            let _ = fs::create_dir_all(&dest_dir);
-        }
+        let _ = fs::create_dir_all(&dest_dir);
 
         let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let dest_path = resolve_collision(&dest_dir, current_path);

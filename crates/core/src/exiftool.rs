@@ -22,11 +22,11 @@ pub fn cleanup_all_processes() {
         Ok(guard) => guard.clone(),
         Err(_) => return,
     };
-    
+
     if pids.is_empty() {
         return;
     }
-    
+
     #[cfg(windows)]
     {
         for pid in pids {
@@ -170,17 +170,26 @@ impl ExifToolEngine {
             if let Err(e) = writeln!(ps.stdin, "-ver") {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -ver: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup write failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup write failed: {}",
+                    e
+                )));
             }
             if let Err(e) = writeln!(ps.stdin, "-execute") {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -execute: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup write failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup write failed: {}",
+                    e
+                )));
             }
             if let Err(e) = ps.stdin.flush() {
                 eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to flush: {}", e);
                 *process_guard = None;
-                return Err(AppError::ExifToolLaunchFailed(format!("Warmup flush failed: {}", e)));
+                return Err(AppError::ExifToolLaunchFailed(format!(
+                    "Warmup flush failed: {}",
+                    e
+                )));
             }
 
             let warmup_timeout = Duration::from_secs(15);
@@ -242,19 +251,18 @@ impl ExifToolEngine {
             eprintln!("  [DEBUG][EXIFTOOL]   arg[{}] = '{}'", i, arg);
         }
 
+        let mut batch = String::with_capacity(args.len() * 64 + 16);
         for arg in args {
             let sanitized_arg = arg.replace(['\r', '\n'], " ");
-            if let Err(e) = writeln!(process_state.stdin, "{}", sanitized_arg) {
-                error!("Failed to write to ExifTool stdin: {}", e);
-                eprintln!("[DEBUG][EXIFTOOL] EXECUTE: stdin write FAILED: {}", e);
-                *process_guard = None; // Force restart next time
-                return Err(AppError::Io(e));
-            }
+            batch.push_str(&sanitized_arg);
+            batch.push('\n');
         }
-        if let Err(e) = writeln!(process_state.stdin, "-execute") {
-            error!("Failed to write execute command to ExifTool stdin: {}", e);
-            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: -execute write FAILED: {}", e);
-            *process_guard = None;
+        batch.push_str("-execute\n");
+
+        if let Err(e) = process_state.stdin.write_all(batch.as_bytes()) {
+            error!("Failed to write batch to ExifTool stdin: {}", e);
+            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: stdin batch write FAILED: {}", e);
+            *process_guard = None; // Force restart next time
             return Err(AppError::Io(e));
         }
         if let Err(e) = process_state.stdin.flush() {
@@ -263,7 +271,9 @@ impl ExifToolEngine {
             *process_guard = None;
             return Err(AppError::Io(e));
         }
-        eprintln!("[DEBUG][EXIFTOOL] EXECUTE: all args written + flushed, waiting for {{ready}}...");
+        eprintln!(
+            "[DEBUG][EXIFTOOL] EXECUTE: all args written + flushed, waiting for {{ready}}..."
+        );
 
         let mut output = String::new();
         let timeout = Duration::from_secs(TIMEOUT_SECS);
@@ -276,7 +286,8 @@ impl ExifToolEngine {
                     if trimmed == "{ready}" {
                         eprintln!(
                             "[DEBUG][EXIFTOOL] EXECUTE: got {{ready}} in {:?} | output_len={}",
-                            exec_start.elapsed(), output.len()
+                            exec_start.elapsed(),
+                            output.len()
                         );
                         break;
                     }
@@ -289,7 +300,8 @@ impl ExifToolEngine {
                     error!("ExifTool read timeout");
                     eprintln!(
                         "[DEBUG][EXIFTOOL] EXECUTE: TIMEOUT after {:?} | output_so_far='{}'",
-                        exec_start.elapsed(), output
+                        exec_start.elapsed(),
+                        output
                     );
                     *process_guard = None;
                     return Err(AppError::ExifToolLaunchFailed(
@@ -371,18 +383,29 @@ pub fn build_metadata_args(target_file: &Path, metadata: &ParsedMetadata) -> Vec
     }
 
     if let Some(desc) = &metadata.description {
-        let safe_desc = desc.replace("\r", " ").replace("\n", " ");
-        args.push(format!("-ImageDescription={}", safe_desc));
+        args.push(sanitize_exif_text("-ImageDescription=", desc));
     }
     if let Some(title) = &metadata.title {
-        let safe_title = title.replace("\r", " ").replace("\n", " ");
-        args.push(format!("-XPTitle={}", safe_title));
-        args.push(format!("-Title={}", safe_title));
+        args.push(sanitize_exif_text("-XPTitle=", title));
+        args.push(sanitize_exif_text("-Title=", title));
     }
 
     args.push(target_file.to_string_lossy().to_string());
 
     args
+}
+
+fn sanitize_exif_text(prefix: &str, text: &str) -> String {
+    let mut out = String::with_capacity(prefix.len() + text.len());
+    out.push_str(prefix);
+    for ch in text.chars() {
+        if ch == '\r' || ch == '\n' {
+            out.push(' ');
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn format_fallback_timestamp(timestamp: i64, is_video: bool) -> String {
@@ -458,7 +481,8 @@ impl<'a> Drop for EngineGuard<'a> {
             let _ = self.sender.send(engine);
             eprintln!(
                 "[DEBUG][EXIFTOOL] RETURN | available_before_return={} | thread={:?}",
-                available_before, std::thread::current().id()
+                available_before,
+                std::thread::current().id()
             );
         }
     }
@@ -475,7 +499,11 @@ impl ExifToolPool {
             sender.send(engine).unwrap();
         }
 
-        Ok(Self { sender, receiver, pool_size })
+        Ok(Self {
+            sender,
+            receiver,
+            pool_size,
+        })
     }
 
     pub fn execute<F, R>(&self, f: F) -> Result<R, AppError>

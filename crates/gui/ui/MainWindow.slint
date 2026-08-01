@@ -1,44 +1,62 @@
 import { Theme } from "components/Theme.slint";
 export { Theme }
+
+import { PrimaryButton } from "components/PrimaryButton.slint";
+import { SecondaryButton } from "components/SecondaryButton.slint";
+import { DangerButton } from "components/DangerButton.slint";
+import { Card } from "components/Card.slint";
+import { SectionHeader } from "components/SectionHeader.slint";
+import { MetricTile } from "components/MetricTile.slint";
+import { LogPanel } from "components/LogPanel.slint";
+import { SearchField } from "components/SearchField.slint";
+import { FilterChip } from "components/FilterChip.slint";
+import { SettingRow } from "components/SettingRow.slint";
+import { OutputModeSelector } from "components/OutputModeSelector.slint";
 import { ThemeSwitcher } from "components/ThemeSwitcher.slint";
-import { CollapsibleSection } from "components/CollapsibleSection.slint";
-import { WelcomePage } from "WelcomePage.slint";
+import { UtilityDialog } from "components/UtilityDialog.slint";
+import { UtilityProgress } from "components/UtilityProgress.slint";
+import { ErrorDialog } from "ErrorDialog.slint";
+import { ListView } from "std-widgets.slint";
 import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot, PastRun } from "Models.slint";
-import { WindowChrome } from "components/WindowChrome.slint";
-import { SplitLayout } from "components/SplitLayout.slint";
-import { AppHeader } from "components/AppHeader.slint";
 
-export component MainWindow inherits WindowChrome {
-    preferred-width: 1280px;
-    preferred-height: 720px;
-    min-width: 900px;
-    min-height: 650px;
+export component MainWindow inherits Window {
+    title: "Google Photos Takeout Restorer";
+    icon: @image-url("../../../assets/icon.png");
+    preferred-width: 1220px;
+    preferred-height: 780px;
+    min-width: 980px;
+    min-height: 640px;
 
-    in-out property <int> current_step: 0;
+    // View state
+    in-out property <int> active_tab: 0; // 0 = Workspace Setup / Overview, 1 = Live Monitor, 2 = Results
+    in-out property <int> current_step: 0; // Backwards compatibility for bindings
     in-out property <string> import_error: "";
-    in-out property <int> active_tab: 0;
+    
+    // UI state
     in-out property <string> action_feedback: "";
     in-out property <bool> action_feedback_is_error: false;
-    in property <string> os_platform: "windows";
-    
-    in property <bool> back_button_enabled: false;
-    in property <string> next_button_text: "";
+    in-out property <bool> show_delete_confirmation: false;
+    in-out property <bool> show_clear_all_confirmation: false;
     in-out property <string> pending_delete_run_id: "";
     in-out property <string> pending_delete_run_title: "";
     in property <bool> show_fatal_error: false;
     in property <string> fatal_error_message: "";
     
+    // Data model snapshots
     in property <[PastRun]> past_runs: [];
     in property <[string]> inputs: [];
     in property <SettingsSnapshot> settings;
     in property <ProcessingSnapshot> processing;
     
+    // Search & Filter state
+    property <string> search_text: "";
+    property <string> status_filter: "All Files";
+
     // Callbacks
     callback go_next();
     callback go_back();
     callback shutdown_requested();
     callback resume_run_clicked(string);
-    callback delete_run_clicked(string);
     callback delete_run_confirmed(string);
     callback clear_all_runs_confirmed();
     callback recover_run_clicked(string);
@@ -47,6 +65,7 @@ export component MainWindow inherits WindowChrome {
     callback select_destination();
     callback remove_input(string);
     callback clear_inputs();
+
     callback change_theme(string);
     callback update_setting(string, string);
     callback start_processing();
@@ -56,40 +75,1034 @@ export component MainWindow inherits WindowChrome {
     callback copy_log_path();
     callback update_results_filter(string, string);
 
+    // Derived states
+    property <bool> can_start: inputs.length > 0 && 
+        (settings.destination_validation.kind == "valid" || settings.destination_validation.kind == "warning" || settings.output_mode == "in-place") &&
+        !processing.is_processing;
+
+    background: Theme.bg_app;
+
     VerticalLayout {
-        // App Header
-        AppHeader {
-            os_platform: root.os_platform;
-            active_tab: root.active_tab;
-            theme: root.settings.theme;
-            status_type: root.show_fatal_error ? 3 : (root.processing.is_finished ? 1 : (root.processing.is_processing ? 1 : 0));
-            status_text: root.show_fatal_error ? "Error" : (root.processing.is_finished ? "Completed" : (root.processing.is_processing ? "Running" : "Idle"));
-            
-            tab_clicked(i) => { root.active_tab = i; }
-            change_theme(t) => { root.change_theme(t); }
-            settings_clicked() => { /* handled later */ }
-            status_clicked() => { root.active_tab = 1; }
+        spacing: 0px;
+
+        // --- TOP APPLICATION HEADER BAR ---
+        Rectangle {
+            height: 52px;
+            background: Theme.bg_panel;
+
+            Rectangle {
+                y: parent.height - 1px;
+                width: 100%;
+                height: 1px;
+                background: Theme.border_subtle;
+            }
+
+            HorizontalLayout {
+                padding-left: Theme.space_5;
+                padding-right: Theme.space_5;
+
+                // Left: Title + Status Pill
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: Theme.space_3;
+
+                        // Brand Title
+                        Text {
+                            text: "Google Photos Takeout Restorer";
+                            font-size: Theme.text_lg;
+                            font-weight: Theme.font_weight_bold;
+                            color: Theme.text_primary;
+                            font-family: Theme.font_family;
+                            vertical-alignment: center;
+                        }
+
+                        // Engine Status Pill (Compact & Pixel-Perfect Centered)
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                height: 26px;
+                                background: root.processing.is_processing ? Theme.accent_soft : Theme.bg_subtle;
+                                border-radius: 13px;
+                                border-width: 1px;
+                                border-color: root.processing.is_processing ? Theme.accent_primary.with-alpha(0.4) : Theme.border_subtle;
+
+                                HorizontalLayout {
+                                    padding-left: Theme.space_3;
+                                    padding-right: Theme.space_3;
+                                    spacing: Theme.space_2;
+                                    alignment: center;
+
+                                    // Vertically Centered Green Dot
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 8px;
+                                            height: 8px;
+                                            border-radius: 4px;
+                                            background: root.processing.is_processing ? Theme.accent_primary :
+                                                        (root.processing.is_finished ? Theme.status_success : Theme.status_success);
+                                        }
+                                    }
+
+                                    // Status Text
+                                    Text {
+                                        text: root.processing.is_processing ? "Restoring..." :
+                                              (root.processing.is_finished ? "Restoration Complete" : "Engine Idle");
+                                        color: root.processing.is_processing ? Theme.accent_primary : Theme.text_secondary;
+                                        font-size: Theme.text_xs;
+                                        font-weight: Theme.font_weight_semibold;
+                                        font-family: Theme.font_family;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Flexible Spacer
+                Rectangle { horizontal-stretch: 1; }
+
+                // Right: Navigation Tabs & Theme Switcher
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: Theme.space_3;
+
+                        // Segmented Navigation Buttons
+                        HorizontalLayout {
+                            spacing: Theme.space_2;
+
+                            FilterChip {
+                                text: "Overview";
+                                selected: root.active_tab == 0 && !root.processing.is_processing && !root.processing.is_finished;
+                                clicked => { root.active_tab = 0; }
+                            }
+
+                            FilterChip {
+                                text: "Live Monitor";
+                                enabled: root.processing.is_processing || root.processing.completed_files > 0;
+                                selected: (root.processing.is_processing || root.active_tab == 1) && (root.processing.is_processing || root.processing.completed_files > 0);
+                                count: root.processing.is_processing ? root.processing.completed_files : -1;
+                                clicked => { root.active_tab = 1; }
+                            }
+
+                            FilterChip {
+                                text: "Results";
+                                enabled: root.processing.is_finished || root.processing.results.length > 0;
+                                selected: (root.processing.is_finished || root.active_tab == 2) && (root.processing.is_finished || root.processing.results.length > 0);
+                                count: root.processing.results.length > 0 ? root.processing.results.length : -1;
+                                clicked => { root.active_tab = 2; }
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle { width: 1px; height: 20px; background: Theme.border_subtle; }
+                        }
+
+                        // Theme Switcher Widget
+                        VerticalLayout {
+                            alignment: center;
+                            ThemeSwitcher {
+                                width: 170px;
+                                theme: root.settings.theme;
+                                change_theme(val) => { root.change_theme(val); }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // Split Layout Placeholder
-        SplitLayout {
-            horizontal-stretch: 1;
-            vertical-stretch: 1;
-            left_panel_width: root.settings.sidebar_width;
-            
-            inputs: root.inputs;
-            settings: root.settings;
-            is_processing: root.processing.is_processing;
-            processing: root.processing;
-            active_tab: root.active_tab;
-            past_runs: root.past_runs;
-            
-            select_zip_files => { root.select_zip_files(); }
-            select_folders => { root.select_folders(); }
-            remove_input(s) => { root.remove_input(s); }
-            select_destination => { root.select_destination(); }
-            update_setting(k,v) => { root.update_setting(k, v); }
-            start_restoration => { root.start_processing(); }
+        // --- ACTION FEEDBACK NOTIFICATION BANNER ---
+        if (root.action_feedback != ""): Rectangle {
+            height: 36px;
+            background: root.action_feedback_is_error ? Theme.status_error.with-alpha(0.12) : Theme.status_info.with-alpha(0.12);
+
+            Rectangle {
+                y: parent.height - 1px;
+                width: 100%;
+                height: 1px;
+                background: root.action_feedback_is_error ? Theme.status_error : Theme.status_info;
+            }
+
+            HorizontalLayout {
+                padding-left: Theme.space_5;
+                padding-right: Theme.space_5;
+                alignment: space-between;
+
+                Text {
+                    text: root.action_feedback;
+                    color: root.action_feedback_is_error ? Theme.status_error : Theme.text_primary;
+                    font-size: Theme.text_xs;
+                    font-weight: Theme.font_weight_medium;
+                    font-family: Theme.font_family;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                TouchArea {
+                    width: 20px;
+                    mouse-cursor: pointer;
+                    clicked => { root.action_feedback = ""; }
+                    Text {
+                        text: "✕";
+                        color: Theme.text_secondary;
+                        font-size: Theme.text_xs;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
         }
+
+        // --- MAIN WORKSPACE AREA (2-PANE DESKTOP LAYOUT) ---
+        Rectangle {
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 0px;
+
+                // =========================================================
+                // LEFT PANE: CONFIGURATION & CONTROL PANEL (FIXED WIDTH 360PX)
+                // =========================================================
+                Rectangle {
+                    width: 360px;
+                    background: Theme.bg_panel;
+
+                    // Panel Right Border
+                    Rectangle {
+                        x: parent.width - 1px;
+                        width: 1px;
+                        height: 100%;
+                        background: Theme.border_subtle;
+                    }
+
+                    VerticalLayout {
+                        padding: Theme.space_3;
+                        spacing: Theme.space_3;
+
+                        // Scrollable Configuration Section
+                        Flickable {
+                            vertical-stretch: 1;
+                            viewport-height: sidebar_content.preferred-height;
+
+                            sidebar_content := VerticalLayout {
+                                spacing: Theme.space_3;
+                                padding-bottom: 24px;
+
+                                // --- SECTION 1: TAKEOUT SOURCES ---
+                                Card {
+                                    VerticalLayout {
+                                        padding: Theme.space_3;
+                                        spacing: Theme.space_3;
+
+                                        SectionHeader {
+                                            title: "❶ Takeout Sources";
+                                            subtitle: "Add Takeout ZIP archives or extracted folders";
+                                            badge: root.inputs.length > 0 ? root.inputs.length + " Added" : "";
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: Theme.space_2;
+
+                                            PrimaryButton {
+                                                horizontal-stretch: 1;
+                                                text: "Add ZIPs";
+                                                icon: "+";
+                                                enabled: !root.processing.is_processing;
+                                                clicked => { root.select_zip_files(); }
+                                            }
+
+                                            SecondaryButton {
+                                                horizontal-stretch: 1;
+                                                text: "Add Folders";
+                                                icon: "+";
+                                                enabled: !root.processing.is_processing;
+                                                clicked => { root.select_folders(); }
+                                            }
+                                        }
+
+                                        if (root.import_error != ""): Rectangle {
+                                            background: Theme.status_warning.with-alpha(0.15);
+                                            border-radius: Theme.radius_sm;
+                                            border-width: 1px;
+                                            border-color: Theme.status_warning;
+                                            VerticalLayout {
+                                                padding: Theme.space_2;
+                                                Text {
+                                                    text: root.import_error;
+                                                    color: Theme.status_warning;
+                                                    font-size: Theme.text_xs;
+                                                    font-family: Theme.font_family;
+                                                    wrap: word-wrap;
+                                                }
+                                            }
+                                        }
+
+                                        // Source items list
+                                        Rectangle {
+                                            height: root.inputs.length == 0 ? 24px : 96px;
+
+                                            if (root.inputs.length == 0): HorizontalLayout {
+                                                padding-left: Theme.space_1;
+                                                Text {
+                                                    text: "No files added. Use the buttons above to select your Takeout archives.";
+                                                    color: Theme.text_disabled;
+                                                    font-size: Theme.text_xs;
+                                                    vertical-alignment: center;
+                                                    wrap: word-wrap;
+                                                }
+                                            }
+
+                                            if (root.inputs.length > 0): Rectangle {
+                                                width: 100%;
+                                                height: 100%;
+                                                background: Theme.bg_subtle;
+                                                border-radius: Theme.radius_sm;
+                                                border-width: 1px;
+                                                border-color: Theme.border_subtle;
+                                                clip: true;
+
+                                                ListView {
+                                                    for path in root.inputs: Rectangle {
+                                                        height: 34px;
+                                                        HorizontalLayout {
+                                                            padding-left: Theme.space_3;
+                                                            padding-right: Theme.space_2;
+                                                            spacing: Theme.space_2;
+                                                            Text {
+                                                                text: "📁";
+                                                                font-size: Theme.text_xs;
+                                                                vertical-alignment: center;
+                                                            }
+                                                            Text {
+                                                                horizontal-stretch: 1;
+                                                                text: path;
+                                                                color: Theme.text_primary;
+                                                                font-size: Theme.text_xs;
+                                                                font-weight: Theme.font_weight_medium;
+                                                                font-family: Theme.font_family;
+                                                                vertical-alignment: center;
+                                                                overflow: elide;
+                                                            }
+                                                            if (!root.processing.is_processing): TouchArea {
+                                                                width: 24px;
+                                                                mouse-cursor: pointer;
+                                                                clicked => { root.remove_input(path); }
+                                                                Text {
+                                                                    text: "✕";
+                                                                    color: Theme.text_secondary;
+                                                                    font-size: Theme.text_xs;
+                                                                    horizontal-alignment: center;
+                                                                    vertical-alignment: center;
+                                                                }
+                                                            }
+                                                        }
+                                                        Rectangle { y: parent.height - 1px; width: 100%; height: 1px; background: Theme.border_subtle; }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if (root.inputs.length > 0 && !root.processing.is_processing): HorizontalLayout {
+                                            alignment: end;
+                                            TouchArea {
+                                                width: 60px;
+                                                mouse-cursor: pointer;
+                                                clicked => { root.clear_inputs(); }
+                                                Text {
+                                                    text: "Clear all";
+                                                    color: Theme.status_error;
+                                                    font-size: Theme.text_xs;
+                                                    font-weight: Theme.font_weight_medium;
+                                                    font-family: Theme.font_family;
+                                                    horizontal-alignment: right;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // --- SECTION 2: OUTPUT MODE SELECTOR ---
+                                Card {
+                                    VerticalLayout {
+                                        padding: Theme.space_3;
+                                        spacing: Theme.space_2;
+
+                                        OutputModeSelector {
+                                            enabled: !root.processing.is_processing;
+                                            output_mode: root.settings.output_mode;
+                                            mode_changed(val) => { root.update_setting("output_mode", val); }
+                                        }
+                                    }
+                                }
+
+                                // --- SECTION 3: DESTINATION & STORAGE INSPECTOR (ONLY FOR COPY MODE) ---
+                                if (root.settings.output_mode == "copy"): Card {
+                                    VerticalLayout {
+                                        padding: Theme.space_3;
+                                        spacing: Theme.space_3;
+
+                                        SectionHeader {
+                                            title: "❸ Output Destination";
+                                            subtitle: "Where restored photos & metadata will be saved";
+                                        }
+
+                                        HorizontalLayout {
+                                            spacing: Theme.space_2;
+                                            Rectangle {
+                                                horizontal-stretch: 1;
+                                                height: Theme.control_height;
+                                                background: Theme.bg_subtle;
+                                                border-radius: Theme.radius_md;
+                                                border-width: 1px;
+                                                border-color: Theme.border_subtle;
+
+                                                HorizontalLayout {
+                                                    padding-left: Theme.space_3;
+                                                    padding-right: Theme.space_3;
+                                                    Text {
+                                                        text: root.settings.destination_path == "" ? "No folder selected" : root.settings.destination_path;
+                                                        color: root.settings.destination_path == "" ? Theme.text_disabled : Theme.text_primary;
+                                                        font-size: Theme.text_xs;
+                                                        font-family: Theme.font_family;
+                                                        vertical-alignment: center;
+                                                        overflow: elide;
+                                                    }
+                                                }
+                                            }
+
+                                            SecondaryButton {
+                                                text: root.settings.destination_path == "" ? "Browse..." : "Change";
+                                                enabled: !root.processing.is_processing;
+                                                clicked => { root.select_destination(); }
+                                            }
+                                        }
+
+                                        // Storage space meter
+                                        if (root.settings.destination_path != ""): VerticalLayout {
+                                            spacing: Theme.space_1;
+
+                                            HorizontalLayout {
+                                                alignment: space-between;
+                                                Text {
+                                                    text: root.settings.destination_validation.kind == "valid" ? "Ready" :
+                                                          (root.settings.destination_validation.kind == "warning" ? "Attention Required" : "Invalid Path");
+                                                    color: root.settings.destination_validation.kind == "error" ? Theme.status_error :
+                                                           (root.settings.destination_validation.kind == "warning" ? Theme.status_warning : Theme.status_success);
+                                                    font-size: Theme.text_xs;
+                                                    font-weight: Theme.font_weight_bold;
+                                                }
+                                                Text {
+                                                    text: round(root.settings.destination_validation.free_gb * 10.0) / 10.0 + " GB free of " + round(root.settings.destination_validation.total_gb) + " GB";
+                                                    color: Theme.text_secondary;
+                                                    font-size: 11px;
+                                                }
+                                            }
+
+                                            UtilityProgress {
+                                                progress: root.settings.destination_validation.pct_free > 0.0 ? (100.0 - root.settings.destination_validation.pct_free) / 100.0 : 0.0;
+                                            }
+
+                                            if (root.settings.destination_validation.message != ""): Text {
+                                                text: root.settings.destination_validation.message;
+                                                color: Theme.text_secondary;
+                                                font-size: 11px;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // --- SECTION 4: RESTORATION OPTIONS ---
+                                Card {
+                                    VerticalLayout {
+                                        padding: Theme.space_3;
+                                        spacing: Theme.space_2;
+
+                                        SectionHeader {
+                                            title: root.settings.output_mode == "copy" ? "❹ Options & Behavior" : "❸ Options & Behavior";
+                                            subtitle: "Configure EXIF, Timezone and Performance";
+                                        }
+
+                                        VerticalLayout {
+                                            spacing: Theme.space_2;
+
+                                            SettingRow {
+                                                icon: "📍";
+                                                title: "Restore EXIF GPS Location";
+                                                description: "Write latitude & longitude metadata to photos";
+                                                checked: root.settings.gps_enabled;
+                                                enabled: !root.processing.is_processing;
+                                                toggled(val) => { root.update_setting("gps_enabled", val ? "true" : "false"); }
+                                            }
+
+                                            SettingRow {
+                                                icon: "🕒";
+                                                title: "Apply Local Timezone Offset";
+                                                description: "Correct time zone timestamps via location data";
+                                                checked: root.settings.timezone_enabled;
+                                                enabled: !root.processing.is_processing;
+                                                toggled(val) => { root.update_setting("timezone_enabled", val ? "true" : "false"); }
+                                            }
+
+                                            SettingRow {
+                                                icon: "📁";
+                                                title: "Isolate Unmatched Files";
+                                                description: "Place files without metadata in Unmatched folder";
+                                                checked: root.settings.unmatched_enabled;
+                                                enabled: !root.processing.is_processing;
+                                                toggled(val) => { root.update_setting("unmatched_enabled", val ? "true" : "false"); }
+                                            }
+
+                                            SettingRow {
+                                                icon: "⚡";
+                                                title: "High Performance Mode";
+                                                description: "Use multi-threading CPU workers for faster processing";
+                                                checked: root.settings.high_performance;
+                                                enabled: !root.processing.is_processing;
+                                                toggled(val) => { root.update_setting("high_performance", val ? "true" : "false"); }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- PRIMARY CONTROL BUTTON (DOMINANT PRIMARY ACTION) ---
+                        VerticalLayout {
+                            spacing: Theme.space_2;
+
+                            if (!root.processing.is_processing): PrimaryButton {
+                                height: 48px;
+                                text: "Start Restoration Engine";
+                                icon: "⚡";
+                                enabled: root.can_start;
+                                clicked => {
+                                    root.active_tab = 1;
+                                    root.start_processing();
+                                }
+                            }
+
+                            if (root.processing.is_processing): DangerButton {
+                                height: 48px;
+                                text: "Cancel Restoration";
+                                icon: "⏹";
+                                clicked => { root.stop_processing(); }
+                            }
+                        }
+                    }
+                }
+
+                // =========================================================
+                // RIGHT PANE: DYNAMIC WORKSPACE CANVAS (FLEXIBLE STRETCH)
+                // =========================================================
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: Theme.bg_app;
+
+                    // VIEW MODE A: OVERVIEW & RECENT RESTORES
+                    if (!root.processing.is_processing && !root.processing.is_finished && root.active_tab == 0): VerticalLayout {
+                        padding: Theme.space_6;
+                        spacing: Theme.space_5;
+
+                        // Welcome / Guidance Card (Matching Design Image)
+                        Card {
+                            is_accent: true;
+                            HorizontalLayout {
+                                padding: Theme.space_5;
+                                spacing: Theme.space_4;
+
+                                Rectangle {
+                                    width: 56px;
+                                    height: 56px;
+                                    border-radius: Theme.radius_md;
+                                    background: Theme.accent_soft;
+                                    Text {
+                                        text: "🔑";
+                                        font-size: 28px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: Theme.space_1;
+
+                                    Text {
+                                        text: "Ready to restore your Google Photos metadata";
+                                        font-size: Theme.text_xl;
+                                        font-weight: Theme.font_weight_bold;
+                                        color: Theme.text_primary;
+                                        font-family: Theme.font_family;
+                                    }
+                                    Text {
+                                        text: "Add your Takeout ZIP archives or extracted folders on the left panel, choose an output directory, then click Start Restoration Engine. Your original files will never be overwritten.";
+                                        font-size: Theme.text_sm;
+                                        color: Theme.text_secondary;
+                                        font-family: Theme.font_family;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Restore History Header
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text {
+                                text: "Restore History";
+                                font-size: Theme.text_lg;
+                                font-weight: Theme.font_weight_bold;
+                                color: Theme.text_primary;
+                                font-family: Theme.font_family;
+                                vertical-alignment: center;
+                            }
+                            HorizontalLayout {
+                                spacing: Theme.space_3;
+
+                                Text {
+                                    text: root.past_runs.length == 0 ? "No saved sessions" : root.past_runs.length + " sessions saved";
+                                    font-size: Theme.text_xs;
+                                    color: Theme.text_secondary;
+                                    font-family: Theme.font_family;
+                                    vertical-alignment: center;
+                                }
+
+                                if (root.past_runs.length > 0): DangerButton {
+                                    text: "Delete All";
+                                    enabled: !root.processing.is_processing;
+                                    clicked => { root.show_clear_all_confirmation = true; }
+                                }
+                            }
+                        }
+
+                        // Past Runs ListView Container
+                        Card {
+                            vertical-stretch: 1;
+                            clip: true;
+
+                            if (root.past_runs.length == 0): VerticalLayout {
+                                alignment: center;
+                                spacing: Theme.space_3;
+
+                                Text {
+                                    text: "📥";
+                                    font-size: 42px;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "No recent or interrupted sessions found.";
+                                    color: Theme.text_primary;
+                                    font-size: Theme.text_base;
+                                    font-weight: Theme.font_weight_bold;
+                                    horizontal-alignment: center;
+                                }
+                                Text {
+                                    text: "When you run a restore, your progress is automatically saved so you can resume anytime.";
+                                    color: Theme.text_secondary;
+                                    font-size: Theme.text_sm;
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            if (root.past_runs.length > 0): ListView {
+                                for run in root.past_runs: Rectangle {
+                                    height: 84px;
+                                    background: row_ta.has-hover ? Theme.bg_hover : transparent;
+
+                                    row_ta := TouchArea { }
+
+                                    VerticalLayout {
+                                        padding: Theme.space_4;
+                                        spacing: Theme.space_2;
+
+                                        HorizontalLayout {
+                                            alignment: space-between;
+
+                                            HorizontalLayout {
+                                                spacing: Theme.space_3;
+                                                Text {
+                                                    text: run.title;
+                                                    color: Theme.text_primary;
+                                                    font-size: Theme.text_base;
+                                                    font-weight: Theme.font_weight_bold;
+                                                    font-family: Theme.font_family;
+                                                }
+                                                if (run.has_recovery_data): Rectangle {
+                                                    height: 20px;
+                                                    background: Theme.status_warning.with-alpha(0.2);
+                                                    border-radius: Theme.radius_sm;
+                                                    border-width: 1px;
+                                                    border-color: Theme.status_warning;
+                                                    HorizontalLayout {
+                                                        padding-left: Theme.space_2; padding-right: Theme.space_2;
+                                                        Text { text: "Recovery Available"; color: Theme.status_warning; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                                    }
+                                                }
+                                            }
+
+                                            HorizontalLayout {
+                                                spacing: Theme.space_2;
+                                                if (run.has_recovery_data): SecondaryButton {
+                                                    text: "Recover State";
+                                                    clicked => { root.recover_run_clicked(run.id); }
+                                                }
+                                                if (!run.has_recovery_data && run.percent_complete < 100): SecondaryButton {
+                                                    text: "Resume";
+                                                    clicked => { root.resume_run_clicked(run.id); }
+                                                }
+                                                DangerButton {
+                                                    text: "Delete";
+                                                    clicked => {
+                                                        root.pending_delete_run_id = run.id;
+                                                        root.pending_delete_run_title = run.title;
+                                                        root.show_delete_confirmation = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        UtilityProgress { progress: run.percent_complete / 100.0; }
+
+                                        HorizontalLayout {
+                                            alignment: space-between;
+                                            Text {
+                                                text: run.completed_files + " of " + run.total_files + " files processed (" + run.percent_complete + "%)";
+                                                color: Theme.text_secondary;
+                                                font-size: Theme.text_xs;
+                                            }
+                                            Text {
+                                                text: "Last active: " + run.last_active;
+                                                color: Theme.text_secondary;
+                                                font-size: Theme.text_xs;
+                                            }
+                                        }
+                                    }
+                                    Rectangle { y: parent.height - 1px; width: 100%; height: 1px; background: Theme.border_subtle; }
+                                }
+                            }
+                        }
+                    }
+
+                    // VIEW MODE B: LIVE MONITOR (PROCESSING)
+                    if (root.processing.is_processing || root.active_tab == 1): VerticalLayout {
+                        padding: Theme.space_6;
+                        spacing: Theme.space_5;
+
+                        // Telemetry Metric Tiles Grid
+                        HorizontalLayout {
+                            spacing: Theme.space_3;
+                            MetricTile { horizontal-stretch: 1; label: "PROCESSED FILES"; value: root.processing.completed_files + " / " + root.processing.total_files; }
+                            MetricTile { horizontal-stretch: 1; label: "SPEED"; value: root.processing.speed_text; }
+                            MetricTile { horizontal-stretch: 1; label: "ELAPSED"; value: root.processing.elapsed_text; }
+                            MetricTile { horizontal-stretch: 1; label: "REMAINING ETA"; value: root.processing.eta_text; }
+                            MetricTile { horizontal-stretch: 1; label: "RESTORED"; value: root.processing.ok_count + ""; status: "success"; }
+                            MetricTile { horizontal-stretch: 1; label: "ERRORS"; value: root.processing.error_count + ""; status: root.processing.error_count > 0 ? "error" : "normal"; }
+                        }
+
+                        // Hero Progress Card
+                        Card {
+                            VerticalLayout {
+                                padding: Theme.space_5;
+                                spacing: Theme.space_4;
+
+                                HorizontalLayout {
+                                    alignment: space-between;
+                                    Text {
+                                        text: root.processing.current_phase_text == "" ? "Restoring Metadata..." : root.processing.current_phase_text;
+                                        font-size: Theme.text_lg;
+                                        font-weight: Theme.font_weight_bold;
+                                        color: Theme.text_primary;
+                                    }
+                                    Text {
+                                        text: root.processing.formatted_progress;
+                                        font-size: Theme.text_2xl;
+                                        font-weight: Theme.font_weight_bold;
+                                        color: Theme.accent_primary;
+                                    }
+                                }
+
+                                UtilityProgress {
+                                    progress: root.processing.total_files > 0 ? (root.processing.completed_files * 1.0) / (root.processing.total_files * 1.0) : 0.0;
+                                    indeterminate: root.processing.total_files == 0;
+                                }
+
+                                Rectangle {
+                                    height: 32px;
+                                    background: Theme.bg_subtle;
+                                    border-radius: Theme.radius_sm;
+                                    HorizontalLayout {
+                                        padding-left: Theme.space_3;
+                                        padding-right: Theme.space_3;
+                                        Text {
+                                            text: root.processing.current_filename == "" ? root.processing.current_phase_text : root.processing.current_filename;
+                                            color: Theme.text_secondary;
+                                            font-size: Theme.text_xs;
+                                            font-family: Theme.font_family;
+                                            vertical-alignment: center;
+                                            overflow: elide;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // VIEW MODE C: RESTORATION RESULTS INSPECTOR
+                    if (root.processing.is_finished || root.active_tab == 2): VerticalLayout {
+                        padding: Theme.space_6;
+                        spacing: Theme.space_4;
+
+                        // Executive Status Banner Card
+                        Card {
+                            is_warning: root.processing.terminal_state == "completed_with_issues" || root.processing.terminal_state == "cancelled";
+                            VerticalLayout {
+                                padding: Theme.space_4;
+                                spacing: Theme.space_3;
+
+                                HorizontalLayout {
+                                    alignment: space-between;
+
+                                    VerticalLayout {
+                                        spacing: Theme.space_1;
+                                        Text {
+                                            text: root.processing.terminal_state == "failed" ? "Restoration Failed" :
+                                                  (root.processing.terminal_state == "cancelled" ? "Restoration Cancelled" :
+                                                  (root.processing.terminal_state == "completed_with_issues" ? "Restoration Completed with Warnings" : "Restoration Complete"));
+                                            font-size: Theme.text_xl;
+                                            font-weight: Theme.font_weight_bold;
+                                            color: root.processing.terminal_state == "failed" ? Theme.status_error :
+                                                   (root.processing.terminal_state == "completed_with_issues" ? Theme.status_warning : Theme.text_primary);
+                                        }
+                                        Text {
+                                            text: root.processing.completed_files + " files processed in " + root.processing.elapsed_text + ". Total restored: " + root.processing.ok_count + " files.";
+                                            font-size: Theme.text_sm;
+                                            color: Theme.text_secondary;
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: Theme.space_2;
+                                        PrimaryButton {
+                                            text: "Open Output Folder";
+                                            icon: "📂";
+                                            clicked => { root.open_output_folder(); }
+                                        }
+                                        SecondaryButton {
+                                            text: "Copy Log Path";
+                                            clicked => { root.copy_log_path(); }
+                                        }
+                                        SecondaryButton {
+                                            text: "New Restore";
+                                            clicked => {
+                                                root.active_tab = 0;
+                                                root.export_again();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Search & Filter Toolbar
+                        HorizontalLayout {
+                            spacing: Theme.space_3;
+
+                            SearchField {
+                                horizontal-stretch: 1;
+                                text: root.search_text;
+                                placeholder: "Search file results by name...";
+                                edited(t) => {
+                                    root.search_text = t;
+                                    root.update_results_filter(root.search_text, root.status_filter);
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: Theme.space_1;
+                                FilterChip {
+                                    text: "All Files";
+                                    selected: root.status_filter == "All Files";
+                                    clicked => {
+                                        root.status_filter = "All Files";
+                                        root.update_results_filter(root.search_text, root.status_filter);
+                                    }
+                                }
+                                FilterChip {
+                                    text: "Success";
+                                    selected: root.status_filter == "Success";
+                                    count: root.processing.ok_count;
+                                    clicked => {
+                                        root.status_filter = "Success";
+                                        root.update_results_filter(root.search_text, root.status_filter);
+                                    }
+                                }
+                                FilterChip {
+                                    text: "Unmatched";
+                                    selected: root.status_filter == "Unmatched";
+                                    count: root.processing.unmatched_count;
+                                    clicked => {
+                                        root.status_filter = "Unmatched";
+                                        root.update_results_filter(root.search_text, root.status_filter);
+                                    }
+                                }
+                                FilterChip {
+                                    text: "Error";
+                                    selected: root.status_filter == "Error";
+                                    count: root.processing.error_count;
+                                    clicked => {
+                                        root.status_filter = "Error";
+                                        root.update_results_filter(root.search_text, root.status_filter);
+                                    }
+                                }
+                            }
+                        }
+
+                        // File Results Table
+                        Card {
+                            vertical-stretch: 1;
+                            clip: true;
+
+                            VerticalLayout {
+                                spacing: 0px;
+
+                                // Table Header
+                                Rectangle {
+                                    height: 32px;
+                                    background: Theme.bg_subtle;
+
+                                    HorizontalLayout {
+                                        padding-left: Theme.space_4;
+                                        padding-right: Theme.space_4;
+                                        spacing: Theme.space_3;
+                                        Text { text: "STATUS"; width: 110px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                        Text { text: "FILENAME & MEDIA"; width: 280px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                        Text { text: "DESTINATION & DETAILS"; horizontal-stretch: 1; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                    }
+                                }
+
+                                if (root.processing.results.length == 0): VerticalLayout {
+                                    alignment: center;
+                                    spacing: Theme.space_2;
+                                    Text {
+                                        text: "🔍  No file results match the active search or filter";
+                                        color: Theme.text_primary;
+                                        font-size: Theme.text_base;
+                                        font-weight: Theme.font_weight_semibold;
+                                        horizontal-alignment: center;
+                                    }
+                                    Text {
+                                        text: "Try adjusting your search query or selecting 'All Files' in the toolbar.";
+                                        color: Theme.text_secondary;
+                                        font-size: Theme.text_xs;
+                                        horizontal-alignment: center;
+                                    }
+                                }
+
+                                if (root.processing.results.length > 0): ListView {
+                                    vertical-stretch: 1;
+                                    for res in root.processing.results: Rectangle {
+                                        height: 52px;
+                                        background: res_ta.has-hover ? Theme.bg_hover : transparent;
+
+                                        res_ta := TouchArea { }
+
+                                        HorizontalLayout {
+                                            padding-left: Theme.space_4;
+                                            padding-right: Theme.space_4;
+                                            spacing: Theme.space_3;
+
+                                            // Status Dot & Text
+                                            HorizontalLayout {
+                                                width: 110px;
+                                                spacing: Theme.space_2;
+                                                Rectangle {
+                                                    width: 8px;
+                                                    height: 8px;
+                                                    border-radius: Theme.radius_full;
+                                                    background: res.status == "Error" ? Theme.status_error :
+                                                                (res.status == "Unmatched" ? Theme.status_warning : Theme.status_success);
+                                                    y: 22px;
+                                                }
+                                                Text {
+                                                    text: res.status;
+                                                    color: res.status == "Error" ? Theme.status_error : Theme.text_primary;
+                                                    font-size: Theme.text_xs;
+                                                    font-weight: Theme.font_weight_semibold;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+
+                                            // Filename & Media type
+                                            VerticalLayout {
+                                                width: 280px;
+                                                alignment: center;
+                                                Text { text: res.filename; color: Theme.text_primary; font-size: Theme.text_xs; font-weight: Theme.font_weight_semibold; overflow: elide; }
+                                                Text { text: res.media_type; color: Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
+                                            }
+
+                                            // Destination & Error Details
+                                            VerticalLayout {
+                                                horizontal-stretch: 1;
+                                                alignment: center;
+                                                Text { text: res.destination; color: Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
+                                                if (res.status == "Error"): Text { text: res.error; color: Theme.status_error; font-size: Theme.text_xs; overflow: elide; }
+                                            }
+                                        }
+                                        Rectangle { y: parent.height - 1px; width: 100%; height: 1px; background: Theme.border_subtle; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- MODAL DIALOG OVERLAYS ---
+    if (root.show_delete_confirmation): UtilityDialog {
+        title: "Delete saved session?";
+        message: "This permanently deletes saved restoration progress for '" + (root.pending_delete_run_title != "" ? root.pending_delete_run_title : "this session") + "'. This action cannot be undone.";
+        accept_text: "Delete session";
+        reject_text: "Keep session";
+        is_warning: true;
+        accepted => {
+            root.show_delete_confirmation = false;
+            root.delete_run_confirmed(root.pending_delete_run_id);
+            root.pending_delete_run_id = "";
+            root.pending_delete_run_title = "";
+        }
+        rejected => {
+            root.show_delete_confirmation = false;
+            root.pending_delete_run_id = "";
+            root.pending_delete_run_title = "";
+        }
+    }
+
+    if (root.show_clear_all_confirmation): UtilityDialog {
+        title: "Clear all restore history?";
+        message: "This permanently deletes all saved restoration progress and past session history. This action cannot be undone.";
+        accept_text: "Delete All Sessions";
+        reject_text: "Cancel";
+        is_warning: true;
+        accepted => {
+            root.show_clear_all_confirmation = false;
+            root.clear_all_runs_confirmed();
+        }
+        rejected => {
+            root.show_clear_all_confirmation = false;
+        }
+    }
+
+    if (root.show_fatal_error): ErrorDialog {
+        error_message: root.fatal_error_message;
+        exit_clicked => { root.shutdown_requested(); }
     }
 }

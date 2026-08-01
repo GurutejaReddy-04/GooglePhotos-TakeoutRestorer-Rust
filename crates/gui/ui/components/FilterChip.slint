@@ -18,17 +18,6 @@ export component FilterChip inherits Rectangle {
 
     animate background { duration: Theme.duration_fast; easing: ease-in-out; }
 
-    forward-focus: focus_scope;
-    focus_scope := FocusScope {
-        key-pressed(e) => {
-            if (root.enabled && (e.text == " " || e.text == "\n")) {
-                root.clicked();
-                return accept;
-            }
-            return reject;
-        }
-    }
-
     touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? pointer : default;

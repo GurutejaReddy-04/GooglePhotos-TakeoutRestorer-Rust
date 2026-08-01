@@ -77,10 +77,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Let Slint use the default hardware-accelerated backend (winit with OpenGL) to restore native OS drag-and-drop.
         let runner = GuiRunner::new(dispatcher, snapshot_rx, config.ui.theme.clone());
         let res = runner.run();
-        
+
         // Ensure all ExifTool zombie processes are forcefully killed on exit
         app_core::exiftool::cleanup_all_processes();
-        
+
         res?;
         return Ok(());
     }

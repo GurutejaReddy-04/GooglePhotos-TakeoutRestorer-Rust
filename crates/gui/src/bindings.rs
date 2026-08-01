@@ -136,7 +136,6 @@ pub fn update_ui_from_snapshot(ui_handle: &Weak<MainWindow>, snapshot: &CoreProc
                 output_mode: settings.output_mode.clone().into(),
                 high_performance: settings.high_performance,
                 theme: settings.theme.clone().into(),
-                sidebar_width: settings.sidebar_width as i32,
             });
 
             ui.global::<Theme>()
