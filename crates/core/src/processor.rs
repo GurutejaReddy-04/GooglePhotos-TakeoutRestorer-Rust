@@ -369,9 +369,18 @@ impl<'a> Processor<'a> {
                             let mut target_path = original_target_path.clone();
 
                             // Auto-heal: detect and fix mismatched file extensions
-                            if let Some(true_ext) =
+                            let is_non_standard = media.extension.is_empty()
+                                || media.extension == "."
+                                || !self.config.supported_image_extensions.contains(&media.extension)
+                                    && !self.config.supported_video_extensions.contains(&media.extension);
+
+                            let correction = if is_non_standard {
                                 crate::auto_heal::get_correction(&target_path, &media.extension)
-                            {
+                            } else {
+                                None
+                            };
+
+                            if let Some(true_ext) = correction {
                                 let mut proposed_path = target_path.clone();
                                 proposed_path.set_extension(true_ext.trim_start_matches('.'));
 
