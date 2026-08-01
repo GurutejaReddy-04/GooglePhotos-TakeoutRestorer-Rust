@@ -1,32 +1,24 @@
-# Rust
+# ==========================================
+# Google Photos Takeout Restorer - .gitignore
+# ==========================================
+
+# ------------------------------------------
+# 1. Rust & Cargo Build Artifacts
+# ------------------------------------------
 target/
+**/*.rs.bk
 
-# Lock file (keep for applications)
-# Cargo.lock
+# Note: Cargo.lock is intentionally TRACKED for reproducible application builds.
 
-# IDE
-.vscode/
-.idea/
-*.code-workspace
+# ------------------------------------------
+# 2. Slint UI Build Artifacts
+# ------------------------------------------
+slint-build/
+*.slint-build/
 
-# OS
-.DS_Store
-Thumbs.db
-Desktop.ini
-._*
-
-# Logs
-*.log
-
-# Temporary / backup / swap files
-*.tmp
-*.bak
-*.orig
-*.swp
-*.swo
-*~
-
-# Packaging / distribution output
+# ------------------------------------------
+# 3. Packaging & Bundling Outputs (cargo-packager)
+# ------------------------------------------
 dist/
 bundle/
 *.app/
@@ -35,19 +27,67 @@ bundle/
 *.deb
 *.AppImage
 
-# Android / iOS build artifacts (if ever added)
-.gradle/
-build/
-DerivedData/
-
-# Databases & Local State
+# ------------------------------------------
+# 4. Local Database & Runtime State
+# ------------------------------------------
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
 *.sqlite
-*.lock
 state_*.db
 
-# Gemini / AI tool artifacts
+# ------------------------------------------
+# 5. Logs & Environment Secrets
+# ------------------------------------------
+*.log
+.env
+.env.local
+.env.*
+
+# ------------------------------------------
+# 6. Legacy Scratch / Debug File Patterns (Root-Anchored Only)
+# (Explanatory Note: Anchored to root to prevent accidental tracking of root-level
+# scratch tests, spec prompts, or dump logs from development sessions without
+# affecting legitimate test modules in subdirectories)
+# ------------------------------------------
+/test_*.rs
+/spec_prompt.*
+/recent_*.txt
+/recent_*.json
+
+# ------------------------------------------
+# 7. IDE & Editor Files
+# ------------------------------------------
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# ------------------------------------------
+# 8. Cross-Platform OS System Files
+# ------------------------------------------
+# Windows
+*.pdb
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+.directory
+.Trash-*
+
+# ------------------------------------------
+# 9. AI Tool & Environment Metadata
+# ------------------------------------------
 .gemini/
