@@ -383,18 +383,29 @@ pub fn build_metadata_args(target_file: &Path, metadata: &ParsedMetadata) -> Vec
     }
 
     if let Some(desc) = &metadata.description {
-        let safe_desc = desc.replace("\r", " ").replace("\n", " ");
-        args.push(format!("-ImageDescription={}", safe_desc));
+        args.push(sanitize_exif_text("-ImageDescription=", desc));
     }
     if let Some(title) = &metadata.title {
-        let safe_title = title.replace("\r", " ").replace("\n", " ");
-        args.push(format!("-XPTitle={}", safe_title));
-        args.push(format!("-Title={}", safe_title));
+        args.push(sanitize_exif_text("-XPTitle=", title));
+        args.push(sanitize_exif_text("-Title=", title));
     }
 
     args.push(target_file.to_string_lossy().to_string());
 
     args
+}
+
+fn sanitize_exif_text(prefix: &str, text: &str) -> String {
+    let mut out = String::with_capacity(prefix.len() + text.len());
+    out.push_str(prefix);
+    for ch in text.chars() {
+        if ch == '\r' || ch == '\n' {
+            out.push(' ');
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn format_fallback_timestamp(timestamp: i64, is_video: bool) -> String {
