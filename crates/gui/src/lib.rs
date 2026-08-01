@@ -37,9 +37,6 @@ impl GuiRunner {
         let ui = MainWindow::new()?;
         ui.global::<Theme>()
             .set_preference(normalize_theme_preference(&self.startup_theme).into());
-        ui.global::<Theme>()
-            .set_prefers_reduced_motion(prefers_reduced_motion());
-        ui.set_os_platform(std::env::consts::OS.into());
         let ui_handle = ui.as_weak();
 
         let state = WindowState::load();
@@ -365,11 +362,6 @@ impl GuiRunner {
                     "high_performance" => settings.high_performance = v == "true",
                     "anonymous_logging" => settings.anonymous_logging = v == "true",
                     "output_mode" => settings.output_mode = v.clone(),
-                    "sidebar_width" => {
-                        if let Ok(width) = v.parse::<i32>() {
-                            settings.sidebar_width = width;
-                        }
-                    }
                     _ => {}
                 }
                 ui.set_settings(settings);
@@ -521,53 +513,12 @@ impl GuiRunner {
     }
 }
 
-pub fn normalize_theme_preference(pref: &str) -> String {
-    match pref.to_lowercase().as_str() {
-        "light" => "Light".to_string(),
-        "dark" => "Dark".to_string(),
-        _ => "System".to_string(),
+pub fn normalize_theme_preference(theme: &str) -> &'static str {
+    match theme {
+        "Light" => "Light",
+        "Dark" => "Dark",
+        _ => "System",
     }
-}
-
-#[cfg(target_os = "windows")]
-fn prefers_reduced_motion() -> bool {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SystemParametersInfoW, SPI_GETCLIENTAREAANIMATION};
-    let mut enabled: i32 = 0;
-    unsafe {
-        let success = SystemParametersInfoW(
-            SPI_GETCLIENTAREAANIMATION,
-            0,
-            &mut enabled as *mut _ as *mut core::ffi::c_void,
-            0,
-        );
-        if success != 0 {
-            enabled == 0
-        } else {
-            false
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn prefers_reduced_motion() -> bool {
-    use objc2_app_kit::NSWorkspace;
-    unsafe {
-        let workspace = NSWorkspace::sharedWorkspace();
-        workspace.accessibilityDisplayShouldReduceMotion()
-    }
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn prefers_reduced_motion() -> bool {
-    // Linux / GTK fallback
-    std::process::Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.interface", "enable-animations"])
-        .output()
-        .map(|output| {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            stdout.trim() == "false"
-        })
-        .unwrap_or(false)
 }
 
 #[cfg(test)]

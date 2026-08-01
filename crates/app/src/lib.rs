@@ -391,11 +391,6 @@ impl CommandDispatcher for CoreDispatcher {
                         }
                     }
                     "theme" => config.ui.theme = value,
-                    "sidebar_width" => {
-                        if let Ok(width) = value.parse::<u32>() {
-                            config.ui.sidebar_width = width;
-                        }
-                    }
                     _ => {}
                 }
                 // Save config and publish

@@ -2,8 +2,7 @@ import { CheckBox } from "std-widgets.slint";
 import { Theme } from "Theme.slint";
 
 export component SettingRow inherits Rectangle {
-    in property <image> icon;
-    in property <bool> has_icon: false;
+    in property <string> icon: "";
     in property <string> title: "";
     in property <string> description: "";
     in-out property <bool> checked: false;
@@ -53,11 +52,10 @@ export component SettingRow inherits Rectangle {
             horizontal-stretch: 1;
             spacing: Theme.space_2;
 
-            if (root.has_icon): Image {
-                source: root.icon;
-                width: 16px;
-                height: 16px;
-                colorize: Theme.text_secondary;
+            if (root.icon != ""): Text {
+                text: root.icon;
+                font-size: Theme.text_sm;
+                vertical-alignment: center;
             }
 
             VerticalLayout {

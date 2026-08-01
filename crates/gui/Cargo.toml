@@ -17,10 +17,5 @@ arboard = "3.6.1"
 percent-encoding = "2.3.2"
 windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.5.2"
-objc2-app-kit = { version = "0.2.2", features = ["NSWorkspace", "NSAccessibility"] }
-objc2-foundation = "0.2.2"
-
 [build-dependencies]
 slint-build = "1.2"

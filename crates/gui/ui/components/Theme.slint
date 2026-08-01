@@ -1,8 +1,4 @@
 import { Palette } from "std-widgets.slint";
-import "../../assets/fonts/Inter-Regular.ttf";
-import "../../assets/fonts/Inter-Medium.ttf";
-import "../../assets/fonts/Inter-SemiBold.ttf";
-import "../../assets/fonts/Inter-Bold.ttf";
 
 export global Theme {
     // `preference` is the persisted user choice. The effective dark-mode value is
@@ -12,17 +8,16 @@ export global Theme {
     in property <bool> system_is_dark: Palette.color-scheme == ColorScheme.dark;
     out property <bool> is_dark_mode: preference == "Dark" ? true :
                                       (preference == "Light" ? false : system_is_dark);
-    in property <bool> prefers_reduced_motion: false;
 
     // --- COLORS ---
     // Surfaces are deliberately calm. The blue accent is reserved for focus,
     // selection, and the single primary action on each screen.
-    out property <color> bg_app: is_dark_mode ? #1E1E20 : #F3F3F5;
-    out property <color> bg_panel: is_dark_mode ? #252529 : #FFFFFF;
-    out property <color> bg_surface: is_dark_mode ? #2A2A2E : #FFFFFF;
-    out property <color> bg_elevated: is_dark_mode ? #323236 : #FFFFFF;
-    out property <color> bg_hover: is_dark_mode ? #3A3A3F : #E5E5EB;
-    out property <color> bg_subtle: is_dark_mode ? #2C2C30 : #EAEAEF;
+    out property <color> bg_app: is_dark_mode ? #10131A : #F6F8FB;
+    out property <color> bg_panel: is_dark_mode ? #171B23 : #FFFFFF;
+    out property <color> bg_surface: is_dark_mode ? #1C212B : #FFFFFF;
+    out property <color> bg_elevated: is_dark_mode ? #232A36 : #FFFFFF;
+    out property <color> bg_hover: is_dark_mode ? #273247 : #EEF4FF;
+    out property <color> bg_subtle: is_dark_mode ? #252C38 : #EEF1F5;
 
     // Tokens alias matching standard Slint Minimalist design language
     out property <color> primary: accent_primary;
@@ -40,8 +35,8 @@ export global Theme {
     out property <color> text_inverted: #FFFFFF;
 
     // Borders
-    out property <color> border_subtle: is_dark_mode ? #3F3F46 : #D4D4D8;
-    out property <color> border_strong: is_dark_mode ? #52525B : #A1A1AA;
+    out property <color> border_subtle: is_dark_mode ? #303A4A : #DCE3EC;
+    out property <color> border_strong: is_dark_mode ? #44516A : #B9C4D3;
     out property <color> border_focus: is_dark_mode ? #8AB8FF : #2563EB;
 
     // Semantics (Same in light/dark for consistency, slight lightness tweaks)
@@ -59,7 +54,7 @@ export global Theme {
 
     // --- TYPOGRAPHY ---
     // Note: Sizes in px scale logically in Slint.
-    out property <string> font_family: "Inter, sans-serif";
+    out property <string> font_family: "sans-serif";
     
     out property <length> font_caption: 11px;
     out property <length> font_body: 13px;
@@ -107,6 +102,6 @@ export global Theme {
     out property <length> content_max_width: 1200px;
 
     // --- MOTION ---
-    out property <duration> duration_fast: prefers_reduced_motion ? 0ms : 150ms;
-    out property <duration> duration_normal: prefers_reduced_motion ? 0ms : 200ms;
+    out property <duration> duration_fast: 150ms;
+    out property <duration> duration_normal: 200ms;
 }

@@ -36,7 +36,6 @@ pub struct SettingsSnapshot {
     pub output_mode: String,
     pub high_performance: bool,
     pub theme: String,
-    pub sidebar_width: u32,
 }
 
 impl Default for SettingsSnapshot {
@@ -51,7 +50,6 @@ impl Default for SettingsSnapshot {
             output_mode: "copy".to_string(),
             high_performance: false,
             theme: "System".to_string(),
-            sidebar_width: 340,
         }
     }
 }
@@ -314,7 +312,6 @@ impl ProcessingViewModelBuilder {
 
                 self.settings.high_performance = config.processing.high_performance;
                 self.settings.theme = config.ui.theme.clone();
-                self.settings.sidebar_width = config.ui.sidebar_width;
             }
             AppEvent::DestinationValidated(res) => {
                 self.settings.destination_path = Some(res.path.to_string_lossy().to_string());

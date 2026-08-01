@@ -6,19 +6,25 @@ export component OutputModeSelector inherits Rectangle {
 
     callback mode_changed(string);
 
-    forward-focus: focus_scope;
-    focus_scope := FocusScope {
-        key-pressed(e) => {
-            if (root.enabled && (e.text == " " || e.text == "\n")) {
-                root.mode_changed(root.output_mode == "copy" ? "in-place" : "copy");
-                return accept;
-            }
-            return reject;
-        }
-    }
-
     VerticalLayout {
         spacing: Theme.space_2;
+
+        VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: "❷ Output Mode";
+                color: root.enabled ? Theme.text_primary : Theme.text_disabled;
+                font-family: Theme.font_family;
+                font-size: Theme.text_xs;
+                font-weight: Theme.font_weight_bold;
+            }
+            Text {
+                text: "Select how restored media files should be saved";
+                color: Theme.text_secondary;
+                font-family: Theme.font_family;
+                font-size: 11px;
+            }
+        }
 
         VerticalLayout {
             spacing: Theme.space_2;
@@ -29,8 +35,8 @@ export component OutputModeSelector inherits Rectangle {
                 background: root.output_mode == "copy" ? Theme.accent_soft :
                             (copy_touch.has-hover && root.enabled ? Theme.bg_hover : Theme.bg_surface);
                 border-radius: Theme.radius_md;
-                border-width: focus_scope.has-focus && root.output_mode == "copy" ? 2px : (root.output_mode == "copy" ? 2px : 1px);
-                border-color: focus_scope.has-focus && root.output_mode == "copy" ? Theme.border_focus : (root.output_mode == "copy" ? Theme.accent_primary : Theme.border_subtle);
+                border-width: root.output_mode == "copy" ? 2px : 1px;
+                border-color: root.output_mode == "copy" ? Theme.accent_primary : Theme.border_subtle;
 
                 animate background { duration: Theme.duration_fast; easing: ease-in-out; }
                 animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
@@ -46,11 +52,10 @@ export component OutputModeSelector inherits Rectangle {
                     padding-right: Theme.space_3;
                     spacing: Theme.space_3;
 
-                    Image {
-                        source: @image-url("../../assets/icons/copy.svg");
-                        width: 20px;
-                        height: 20px;
-                        colorize: root.output_mode == "copy" ? Theme.accent_primary : Theme.text_primary;
+                    Text {
+                        text: "📄";
+                        font-size: Theme.text_base;
+                        vertical-alignment: center;
                     }
 
                     VerticalLayout {
@@ -121,8 +126,8 @@ export component OutputModeSelector inherits Rectangle {
                 background: root.output_mode == "in-place" ? Theme.accent_soft :
                             (inplace_touch.has-hover && root.enabled ? Theme.bg_hover : Theme.bg_surface);
                 border-radius: Theme.radius_md;
-                border-width: focus_scope.has-focus && root.output_mode == "in-place" ? 2px : (root.output_mode == "in-place" ? 2px : 1px);
-                border-color: focus_scope.has-focus && root.output_mode == "in-place" ? Theme.border_focus : (root.output_mode == "in-place" ? Theme.accent_primary : Theme.border_subtle);
+                border-width: root.output_mode == "in-place" ? 2px : 1px;
+                border-color: root.output_mode == "in-place" ? Theme.accent_primary : Theme.border_subtle;
 
                 animate background { duration: Theme.duration_fast; easing: ease-in-out; }
                 animate border-color { duration: Theme.duration_fast; easing: ease-in-out; }
@@ -138,11 +143,10 @@ export component OutputModeSelector inherits Rectangle {
                     padding-right: Theme.space_3;
                     spacing: Theme.space_3;
 
-                    Image {
-                        source: @image-url("../../assets/icons/file-pen-line.svg");
-                        width: 20px;
-                        height: 20px;
-                        colorize: root.output_mode == "in-place" ? Theme.accent_primary : Theme.text_primary;
+                    Text {
+                        text: "📝";
+                        font-size: Theme.text_base;
+                        vertical-alignment: center;
                     }
 
                     VerticalLayout {
