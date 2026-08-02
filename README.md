@@ -73,7 +73,7 @@ cd GooglePhotos-TakeoutRestorer-Rust
 cargo build --release
 ```
 
-The compiled binaries will be located at `target/release/app`.
+The compiled binaries will be located at `target/release/TakeoutRestorer`.
 
 ---
 
@@ -97,10 +97,10 @@ Run headlessly in server or automated batch environments:
 
 ```bash
 # Basic CLI invocation
-./target/release/app --output "/path/to/output" "/path/to/Google Photos Takeout"
+./target/release/TakeoutRestorer --output "/path/to/output" "/path/to/Google Photos Takeout"
 
 # Use system ExifTool binary
-./target/release/app --use-system-exiftool --output "/path/to/output" "/path/to/Takeout"
+./target/release/TakeoutRestorer --use-system-exiftool --output "/path/to/output" "/path/to/Takeout"
 ```
 
 ---

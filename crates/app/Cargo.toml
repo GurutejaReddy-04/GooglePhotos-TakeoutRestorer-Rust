@@ -5,16 +5,18 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "TakeoutRestorer"
+path = "src/main.rs"
+
 [dependencies]
 app_core = { package = "core", path = "../core" }
 downloader = { path = "../downloader" }
 shared_ui = { path = "../shared_ui" }
 gui = { path = "../gui", optional = true }
-thiserror.workspace = true
 directories.workspace = true
 clap = { version = "4.4", features = ["derive"] }
 ctrlc = "3.4"
-tracing = "0.1"
 rusqlite.workspace = true
 fs2 = "0.4.3"
 
@@ -37,5 +39,5 @@ copyright = "Copyright (c) 2026 Takeout Restorer Team"
 icons = ["../../assets/icon.png", "../../assets/icon.icns", "../../assets/icon.ico"]
 
 [[package.metadata.packager.binaries]]
-path = "app"
+path = "TakeoutRestorer"
 main = true
