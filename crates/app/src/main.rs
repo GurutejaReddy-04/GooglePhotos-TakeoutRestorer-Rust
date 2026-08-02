@@ -17,27 +17,35 @@ use shared_ui::{CommandDispatcher, SnapshotPolicy, UiCommand, ViewModelUpdater};
 #[cfg(feature = "gui")]
 use gui::GuiRunner;
 
+/// Command-line arguments for launching the application in headless or GUI mode.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Google Photos Takeout Restorer", long_about = None)]
 struct Cli {
+    /// Launch the graphical user interface.
     #[arg(long, help = "Launch the graphical user interface")]
     gui: bool,
 
+    /// One or more input paths (directories or zip files) containing Google Takeout data.
     #[arg(required = false)]
     inputs: Vec<PathBuf>,
 
+    /// The destination directory where restored media will be saved.
     #[arg(short, long, required = false)]
     output: Option<PathBuf>,
 
+    /// Optional path to explicitly set the SQLite state database location.
     #[arg(long)]
     db_path: Option<PathBuf>,
 
+    /// If true, uses the system-installed ExifTool instead of the embedded downloader.
     #[arg(long)]
     use_system_exiftool: bool,
 }
 
 use app::CoreDispatcher;
 
+/// Entry point for the application. Initializes logging, parses CLI arguments,
+/// and delegates to either the `GuiRunner` or the headless `CoreDispatcher` depending on arguments.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_logging();
     let cli = Cli::parse();

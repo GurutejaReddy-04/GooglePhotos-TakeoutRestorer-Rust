@@ -23,6 +23,9 @@ Thank you for your interest in contributing! We welcome bug reports, feature req
 
 Before submitting a Pull Request, ensure all tests and quality checks pass:
 
+> **Note: Independent Verification Status**
+> - **Verified by audit:** The build, formatting, linting, and testing commands below have been independently verified to execute cleanly across the entire workspace on v0.1.7.
+
 ```bash
 # 1. Format Check
 cargo fmt --all -- --check

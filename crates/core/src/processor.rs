@@ -20,10 +20,15 @@ const DIR_LOGS: &str = "Logs";
 
 static FILE_MOVE_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Trait representing a checker for available disk space.
+/// Useful for mocking during testing or providing custom OS-specific implementations.
 pub trait DiskSpaceChecker: Send + Sync {
+    /// Returns the available bytes on the disk partition where `path` is located.
     fn available_bytes(&self, path: &Path) -> u64;
 }
 
+/// A concrete implementation of `DiskSpaceChecker` using the `sysinfo` crate.
+/// This checks the actual system mounts to determine free space on the destination drive.
 pub struct SysinfoDiskChecker {
     _sys: std::sync::Mutex<sysinfo::System>,
 }
@@ -69,6 +74,9 @@ impl DiskSpaceChecker for SysinfoDiskChecker {
     }
 }
 
+/// The central processor that orchestrates the matching and metadata restoration phases.
+/// It coordinates the `StateDatabase`, `Matcher`, and `ExifToolPool` to process files
+/// concurrently while reporting progress and managing disk space.
 pub struct Processor<'a> {
     db: &'a StateDatabase,
     config: &'a Config,
