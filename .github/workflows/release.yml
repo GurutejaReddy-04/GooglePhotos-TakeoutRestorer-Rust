@@ -78,11 +78,16 @@ jobs:
     - name: Run Packager
       run: cargo packager --release --target ${{ matrix.target }}
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: ${{ matrix.artifact_name }}
-        path: |
-          target/${{ matrix.target }}/release/app*
+        files: |
+          target/${{ matrix.target }}/release/*.deb
+          target/${{ matrix.target }}/release/*.AppImage
+          target/${{ matrix.target }}/release/*.tar.gz
+          target/${{ matrix.target }}/release/*.dmg
+          target/${{ matrix.target }}/release/*.msi
+          target/${{ matrix.target }}/release/*setup*.exe
+          target/${{ matrix.target }}/release/*.zip
           *.cdx.json
-          *.json
