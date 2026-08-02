@@ -28,3 +28,13 @@ winres = "0.1.12"
 [dev-dependencies]
 tempfile = "3.10"
 
+[package.metadata.packager]
+product_name = "Google Photos Takeout Restorer"
+identifier = "com.takeoutrestorer.app"
+description = "Restores Google Photos Takeout metadata using ExifTool."
+copyright = "Copyright (c) 2026 Takeout Restorer Team"
+icons = ["../../assets/icon.png", "../../assets/icon.icns", "../../assets/icon.ico"]
+
+[[package.metadata.packager.binaries]]
+path = "app"
+main = true
