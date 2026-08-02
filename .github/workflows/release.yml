@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-release:
     name: Build & Package (${{ matrix.os }})
@@ -23,32 +26,71 @@ jobs:
             artifact_name: restorer-macos-x86_64
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Install Linux build dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev libglib2.0-dev libgtk-3-dev pkg-config exiftool
+
+    - name: Install macOS build dependencies
+      if: runner.os == 'macOS'
+      run: |
+        brew install exiftool
+        rustup target add x86_64-apple-darwin
+
+    - name: Install Windows build dependencies
+      if: runner.os == 'Windows'
+      run: |
+        choco install exiftool
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: 1.75.0
-        target: ${{ matrix.target }}
+        targets: ${{ matrix.target }}
 
     - name: Install cargo-packager
       run: cargo install cargo-packager --locked
 
     - name: Build Release Binary
       run: cargo build --release --target ${{ matrix.target }}
-      
+
     - name: Generate SBOM (CycloneDX)
       run: |
-        cargo install cargo-cyclonedx
-        cargo cyclonedx -f json --all -o bom-${{ matrix.target }}.json
+        cargo install cargo-cyclonedx --locked
+        cargo cyclonedx -f json --all
+
+    - name: Generate macOS ICNS
+      if: runner.os == 'macOS'
+      run: |
+        mkdir assets/icon.iconset
+        sips -z 16 16     assets/icon.png --out assets/icon.iconset/icon_16x16.png
+        sips -z 32 32     assets/icon.png --out assets/icon.iconset/icon_16x16@2x.png
+        sips -z 32 32     assets/icon.png --out assets/icon.iconset/icon_32x32.png
+        sips -z 64 64     assets/icon.png --out assets/icon.iconset/icon_32x32@2x.png
+        sips -z 128 128   assets/icon.png --out assets/icon.iconset/icon_128x128.png
+        sips -z 256 256   assets/icon.png --out assets/icon.iconset/icon_128x128@2x.png
+        sips -z 256 256   assets/icon.png --out assets/icon.iconset/icon_256x256.png
+        sips -z 512 512   assets/icon.png --out assets/icon.iconset/icon_256x256@2x.png
+        sips -z 512 512   assets/icon.png --out assets/icon.iconset/icon_512x512.png
+        sips -z 1024 1024 assets/icon.png --out assets/icon.iconset/icon_512x512@2x.png
+        iconutil -c icns assets/icon.iconset
 
     - name: Run Packager
-      run: cargo packager --release
+      run: cargo packager --release --target ${{ matrix.target }}
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: ${{ matrix.artifact_name }}
-        path: |
-          target/${{ matrix.target }}/release/app*
-          bom-${{ matrix.target }}.json
+        files: |
+          target/${{ matrix.target }}/release/*.deb
+          target/${{ matrix.target }}/release/*.AppImage
+          target/${{ matrix.target }}/release/*.tar.gz
+          target/${{ matrix.target }}/release/*.dmg
+          target/${{ matrix.target }}/release/*.msi
+          target/${{ matrix.target }}/release/*setup*.exe
+          target/${{ matrix.target }}/release/*.zip
+          *.cdx.json

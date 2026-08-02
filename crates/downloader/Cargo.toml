@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 core = { path = "../core" }
-thiserror.workspace = true
 ureq.workspace = true
 zip.workspace = true
 tar.workspace = true

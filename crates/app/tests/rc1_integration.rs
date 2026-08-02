@@ -9,11 +9,25 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tempfile::tempdir;
 
+fn setup_fixtures_path() {
+    let current_path = std::env::var_os("PATH").unwrap_or_default();
+    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let mut paths = std::env::split_paths(&current_path).collect::<Vec<_>>();
+    if !paths.contains(&fixtures_dir) {
+        paths.insert(0, fixtures_dir);
+        if let Ok(new_path) = std::env::join_paths(paths) {
+            std::env::set_var("PATH", new_path);
+        }
+    }
+}
+
 #[test]
 fn test_small_dataset_pipeline() {
+    setup_fixtures_path();
     let input_dir = common::ensure_small_dataset();
     let temp_out = tempdir().unwrap();
     let out_dir = temp_out.path().to_path_buf();
+    let db_path = out_dir.join("small_dataset.db");
 
     let publisher = Arc::new(Broadcaster::new());
     let event_rx = publisher.subscribe();
@@ -24,32 +38,20 @@ fn test_small_dataset_pipeline() {
     );
 
     let config = Config::default();
-
     let error_rx = publisher.subscribe();
-
-    // Set PATH to include our dummy exiftool.exe
-    let current_path = std::env::var_os("PATH").unwrap_or_default();
-    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let mut new_path = std::ffi::OsString::new();
-    new_path.push(&fixtures_dir);
-    new_path.push(";"); // Windows separator
-    new_path.push(&current_path);
-    std::env::set_var("PATH", new_path);
 
     let dispatcher = Arc::new(CoreDispatcher {
         cancel_token: Arc::new(AtomicBool::new(false)),
         pause_token: Arc::new(AtomicBool::new(false)),
         publisher: Arc::clone(&publisher),
         input_dirs: Arc::new(Mutex::new(vec![input_dir])),
-        output_dir: Arc::new(Mutex::new(Some(out_dir.clone()))),
-        db_path: Arc::new(Mutex::new(None)),
-        use_system_exiftool: Arc::new(Mutex::new(true)), // Use our dummy exiftool
+        output_dir: Arc::new(Mutex::new(Some(out_dir))),
+        db_path: Arc::new(Mutex::new(Some(db_path))),
+        use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),
     });
 
-    // We can directly call run_core_pipeline, but dispatching StartProcessing tests the UiCommand flow
-    // Dispatch is async, so we'll wait for the finished state.
     dispatcher.dispatch(UiCommand::StartProcessing).unwrap();
 
     let mut is_finished = false;
@@ -80,8 +82,6 @@ fn test_small_dataset_pipeline() {
         final_snapshot.results.len()
     );
 
-    // We expect 100 images + 20 videos = 120 total, plus 120 JSONs = 240 files scanned maybe.
-    // Actually we only care about matched media.
     assert_eq!(
         final_snapshot.image_count, 100,
         "Should have processed 100 images. Phase: {}",
@@ -95,9 +95,11 @@ fn test_small_dataset_pipeline() {
 
 #[test]
 fn test_edge_cases_pipeline() {
+    setup_fixtures_path();
     let input_dir = common::ensure_edge_case_dataset();
     let temp_out = tempdir().unwrap();
     let out_dir = temp_out.path().to_path_buf();
+    let db_path = out_dir.join("edge_cases.db");
 
     let publisher = Arc::new(Broadcaster::new());
     let event_rx = publisher.subscribe();
@@ -110,15 +112,6 @@ fn test_edge_cases_pipeline() {
     let mut config = Config::default();
     config.processing.unmatched_enabled = true;
 
-    // Set PATH to include our dummy exiftool.exe
-    let current_path = std::env::var_os("PATH").unwrap_or_default();
-    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let mut new_path = std::ffi::OsString::new();
-    new_path.push(&fixtures_dir);
-    new_path.push(";"); // Windows separator
-    new_path.push(&current_path);
-    std::env::set_var("PATH", new_path);
-
     let error_rx = publisher.subscribe();
 
     let dispatcher = Arc::new(CoreDispatcher {
@@ -126,8 +119,8 @@ fn test_edge_cases_pipeline() {
         pause_token: Arc::new(AtomicBool::new(false)),
         publisher: Arc::clone(&publisher),
         input_dirs: Arc::new(Mutex::new(vec![input_dir])),
-        output_dir: Arc::new(Mutex::new(Some(out_dir.clone()))),
-        db_path: Arc::new(Mutex::new(None)),
+        output_dir: Arc::new(Mutex::new(Some(out_dir))),
+        db_path: Arc::new(Mutex::new(Some(db_path))),
         use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),
@@ -158,8 +151,6 @@ fn test_edge_cases_pipeline() {
 
     let final_snapshot = snapshot_rx.borrow().clone();
 
-    // Ensure all edge cases are processed (some might fail or be unmatched, but it shouldn't crash)
-    // 1 corrupt json (will fall back to unmatched), 1 missing json (unmatched), 2 duplicates (will rename), 1 non-english
     assert_eq!(
         final_snapshot.results.len(),
         5,
@@ -231,9 +222,11 @@ fn test_interrupted_processing_recovery() {
 
 #[test]
 fn test_staging_directory_cleanup() {
+    setup_fixtures_path();
     let input_dir = common::ensure_small_dataset();
     let temp_out = tempdir().unwrap();
     let out_dir = temp_out.path().to_path_buf();
+    let db_path = out_dir.join("staging_cleanup.db");
 
     let publisher = Arc::new(Broadcaster::new());
     let event_rx = publisher.subscribe();
@@ -245,21 +238,13 @@ fn test_staging_directory_cleanup() {
 
     let config = Config::default();
 
-    let current_path = std::env::var_os("PATH").unwrap_or_default();
-    let fixtures_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let mut new_path = std::ffi::OsString::new();
-    new_path.push(&fixtures_dir);
-    new_path.push(";");
-    new_path.push(&current_path);
-    std::env::set_var("PATH", new_path);
-
     let dispatcher = Arc::new(CoreDispatcher {
         cancel_token: Arc::new(AtomicBool::new(false)),
         pause_token: Arc::new(AtomicBool::new(false)),
         publisher: Arc::clone(&publisher),
         input_dirs: Arc::new(Mutex::new(vec![input_dir])),
         output_dir: Arc::new(Mutex::new(Some(out_dir.clone()))),
-        db_path: Arc::new(Mutex::new(None)),
+        db_path: Arc::new(Mutex::new(Some(db_path))),
         use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),

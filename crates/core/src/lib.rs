@@ -1,3 +1,9 @@
+//! Google Photos Takeout Restorer - Core Crate
+//! High-performance Rust pipeline for restoring EXIF metadata to Google Photos Takeout archives.
+//!
+//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
+//! Open Source Software released under the MIT License.
+
 pub mod auto_heal;
 pub mod config;
 pub mod error;

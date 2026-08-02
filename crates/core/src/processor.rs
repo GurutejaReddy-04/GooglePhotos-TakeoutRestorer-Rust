@@ -1217,14 +1217,14 @@ mod tests {
         #[cfg(windows)]
         fs::write(
             &mock_bin,
-            "@echo off\n:loop\nset /p line=\nif \"%line%\"==\"-execute\" echo {ready}\ngoto loop\n",
+            "@echo off\n:loop\nset /p line=\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\necho {ready})\nif \"%line:~0,8%\"==\"-execute\" echo {ready}\ngoto loop\n",
         )
         .unwrap();
 
         #[cfg(not(windows))]
         {
             use std::os::unix::fs::PermissionsExt;
-            fs::write(&mock_bin, "#!/bin/sh\nwhile read line; do [ \"$line\" = \"-execute\" ] && echo \"{ready}\"; done\n").unwrap();
+            fs::write(&mock_bin, "#!/bin/sh\nwhile read line; do [ \"$line\" = \"-ver\" ] && echo \"13.59\"; [ \"$line\" = \"-execute\" ] && echo \"{ready}\"; done\n").unwrap();
             let mut perms = fs::metadata(&mock_bin).unwrap().permissions();
             perms.set_mode(0o755);
             fs::set_permissions(&mock_bin, perms).unwrap();

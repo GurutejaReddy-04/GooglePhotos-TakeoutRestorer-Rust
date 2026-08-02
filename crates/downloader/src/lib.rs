@@ -1,3 +1,9 @@
+//! Google Photos Takeout Restorer - Downloader Crate
+//! Automatic downloading and verification of platform-specific ExifTool binaries.
+//!
+//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
+//! Open Source Software released under the MIT License.
+
 use core::error::AppError;
 use sha2::{Digest, Sha256};
 use std::fs::File;
@@ -26,6 +32,7 @@ const EXIFTOOL_URL: &str =
 #[cfg(not(target_os = "windows"))]
 const EXIFTOOL_SHA256: &str = "668ea3acececb7235fbd0f4900e72d5f12c9b07e5c778fd36cb1e9b5828fd65a";
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 const EXIFTOOL_EXECUTABLE: &str = "exiftool";
 #[cfg(not(target_os = "windows"))]
 const EXIFTOOL_FINAL_EXECUTABLE: &str = "exiftool";
@@ -332,6 +339,9 @@ mod tests {
             .unwrap();
 
         builder.finish().unwrap();
+
+        // Explicitly drop builder to drop inner GzEncoder and File, flushing trailer to disk
+        drop(builder);
 
         // Perform extraction
         manager.extract_tar_gz(&archive_path).unwrap();
