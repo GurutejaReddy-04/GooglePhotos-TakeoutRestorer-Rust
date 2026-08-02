@@ -12,8 +12,8 @@ Thank you for your interest in contributing! We welcome bug reports, feature req
    ```
 2. **Clone the Repository:**
    ```bash
-   git clone https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust.git
-   cd Google-Photos-Takeout-Restorer-Rust
+   git clone https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust.git
+   cd GooglePhotos-TakeoutRestorer-Rust
    ```
 3. **Install ExifTool:** Refer to the ExifTool installation steps in [README.md](README.md#%EF%B8%8F-system-requirements--dependencies) or allow the application to download it automatically.
 

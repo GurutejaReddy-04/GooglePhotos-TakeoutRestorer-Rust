@@ -1,6 +1,8 @@
 # Google Photos Takeout Restorer
 
-[![CI Build](https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust/workflows/CI/badge.svg)](https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust/actions)
+[![Latest Release](https://img.shields.io/github/v/release/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases)
+[![Release Workflow](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/release.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
+[![CI Build](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#supported-platforms)
@@ -24,7 +26,7 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 
 ![App Icon](assets/icon.png)
 
-*(Slint UI Screenshots & Demo GIF: TODO)*
+
 
 The app features both an intuitive, modern graphical interface (built with [Slint](https://slint.dev)) and a powerful headless CLI for automated/server environments.
 
@@ -34,9 +36,9 @@ The app features both an intuitive, modern graphical interface (built with [Slin
 
 | Platform | Status | Package / Installer Availability | Recommended Installation |
 | :--- | :--- | :--- | :--- |
-| **Windows** (x86_64) | Tested (Primary) | Pre-built Installer (`.exe` / `.msi`) / Portable | Releases / Build from source |
-| **macOS** (x86_64 / ARM64) | Supported | Build from source *(Packager installer in progress)* | `cargo build --release` |
-| **Linux** (x86_64) | Supported | Build from source *(Packager installer in progress)* | `cargo build --release` |
+| **Windows** (x86_64) | Tested (Primary) | Pre-built Installer (`.exe` / `.msi` / `.nsis`) | Download from Releases |
+| **macOS** (x86_64 / ARM64) | Supported | Pre-built App Bundle (`.app` / `.dmg`) | Download from Releases |
+| **Linux** (x86_64) | Supported | Pre-built Package (`.deb` / `.AppImage`) | Download from Releases |
 
 ---
 
@@ -57,15 +59,15 @@ The app features both an intuitive, modern graphical interface (built with [Slin
 ## 🚀 Installation & Building
 
 ### Pre-Built Installers
-Check the [Releases](https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust/releases) section for official releases and installers.
+Download the latest pre-built installers for Windows, macOS, or Linux from the [Latest Release](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases/latest) page.
 
 ### Building from Source
 Clone the repository and build using Cargo:
 
 ```bash
 # Clone repository
-git clone https://github.com/GurutejaReddy-04/Google-Photos-Takeout-Restorer-Rust.git
-cd Google-Photos-Takeout-Restorer-Rust
+git clone https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust.git
+cd GooglePhotos-TakeoutRestorer-Rust
 
 # Build release binaries (CLI + GUI)
 cargo build --release
