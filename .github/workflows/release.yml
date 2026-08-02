@@ -76,7 +76,7 @@ jobs:
         iconutil -c icns assets/icon.iconset
 
     - name: Run Packager
-      run: cargo packager --release
+      run: cargo packager --release --target ${{ matrix.target }}
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
