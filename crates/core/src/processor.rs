@@ -97,7 +97,6 @@ impl DiskSpaceChecker for SysinfoDiskChecker {
     }
 }
 
-
 /// The central processor that orchestrates the matching and metadata restoration phases.
 /// It coordinates the `StateDatabase`, `Matcher`, and `ExifToolPool` to process files
 /// concurrently while reporting progress and managing disk space.
@@ -267,8 +266,14 @@ impl<'a> Processor<'a> {
                             // Auto-heal: detect and fix mismatched file extensions
                             let is_non_standard = media.extension.is_empty()
                                 || media.extension == "."
-                                || !self.config.supported_image_extensions.contains(&media.extension)
-                                    && !self.config.supported_video_extensions.contains(&media.extension);
+                                || !self
+                                    .config
+                                    .supported_image_extensions
+                                    .contains(&media.extension)
+                                    && !self
+                                        .config
+                                        .supported_video_extensions
+                                        .contains(&media.extension);
 
                             let correction = if is_non_standard {
                                 crate::auto_heal::get_correction(&target_path, &media.extension)
@@ -317,12 +322,10 @@ impl<'a> Processor<'a> {
                                     );
 
                                     let bytes_written = if media.size > 0 {
-                                         media.size as u64
-                                     } else {
-                                         std::fs::metadata(&final_path)
-                                             .map(|m| m.len())
-                                             .unwrap_or(0)
-                                     };
+                                        media.size as u64
+                                    } else {
+                                        std::fs::metadata(&final_path).map(|m| m.len()).unwrap_or(0)
+                                    };
                                     if let Err(db_err) = self
                                         .db
                                         .enqueue_status_update(StatusUpdate::Completed(media.id))
@@ -458,10 +461,13 @@ impl<'a> Processor<'a> {
                                 }
 
                                 let dest = self.resolve_staging_path(media);
-                                let is_claimed = self.db.try_mark_processing(media.id).unwrap_or(false);
+                                let is_claimed =
+                                    self.db.try_mark_processing(media.id).unwrap_or(false);
                                 if !is_claimed {
-                                    let current_cnt = completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
-                                    if current_cnt.is_multiple_of(25) || current_cnt == grand_total {
+                                    let current_cnt =
+                                        completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
+                                    if current_cnt.is_multiple_of(25) || current_cnt == grand_total
+                                    {
                                         self.publisher.publish(AppEvent::ProgressStats {
                                             completed: current_cnt,
                                             total: grand_total,
@@ -474,12 +480,13 @@ impl<'a> Processor<'a> {
 
                                 if let FilePath::Zip { internal, .. } = &media.path {
                                     let extract_res = (|| -> Result<u64, AppError> {
-                                        let idx = *name_to_index.get(internal).ok_or_else(|| {
-                                            AppError::Io(std::io::Error::other(format!(
-                                                "Zip entry not found: {}",
-                                                internal
-                                            )))
-                                        })?;
+                                        let idx =
+                                            *name_to_index.get(internal).ok_or_else(|| {
+                                                AppError::Io(std::io::Error::other(format!(
+                                                    "Zip entry not found: {}",
+                                                    internal
+                                                )))
+                                            })?;
                                         // Reuse the outer zip handle — avoids re-reading
                                         // the central directory for each extraction.
                                         let mut zip_file = zip.by_index(idx)?;
@@ -487,19 +494,19 @@ impl<'a> Processor<'a> {
                                         if let Some(p) = dest.parent() {
                                             let _ = fs::create_dir_all(p);
                                         }
-                                        let mut file_name = dest
-                                            .file_name()
-                                            .unwrap_or_default()
-                                            .to_os_string();
+                                        let mut file_name =
+                                            dest.file_name().unwrap_or_default().to_os_string();
                                         file_name.push(".partial");
                                         let temp_dest = dest.with_file_name(file_name);
 
-                                        let raw_file = fs::File::create(&temp_dest)
-                                            .map_err(AppError::Io)?;
-                                        let mut out_file = std::io::BufWriter::with_capacity(64 * 1024, raw_file);
+                                        let raw_file =
+                                            fs::File::create(&temp_dest).map_err(AppError::Io)?;
+                                        let mut out_file =
+                                            std::io::BufWriter::with_capacity(64 * 1024, raw_file);
                                         use std::io::{Read, Write};
                                         const MAX_SAFE_FILE_SIZE: u64 = 20_000_000_000;
-                                        let mut bounded_reader = zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
+                                        let mut bounded_reader =
+                                            zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
                                         let size =
                                             std::io::copy(&mut bounded_reader, &mut out_file)
                                                 .map_err(|e| {
@@ -528,14 +535,27 @@ impl<'a> Processor<'a> {
                                         // Sidecar JSON Staging Optimization:
                                         // If media has a matched sidecar JSON in the same archive,
                                         // extract it directly to dest.parent()/sidecar.json using our open zip handle.
-                                        if let Some(FilePath::Zip { archive: json_archive, internal: json_internal }) = &media.json_path {
+                                        if let Some(FilePath::Zip {
+                                            archive: json_archive,
+                                            internal: json_internal,
+                                        }) = &media.json_path
+                                        {
                                             if json_archive == &archive_path {
-                                                if let Some(&json_idx) = name_to_index.get(json_internal) {
-                                                    if let Ok(mut json_zf) = zip.by_index(json_idx) {
+                                                if let Some(&json_idx) =
+                                                    name_to_index.get(json_internal)
+                                                {
+                                                    if let Ok(mut json_zf) = zip.by_index(json_idx)
+                                                    {
                                                         if let Some(p) = dest.parent() {
-                                                            let sidecar_path = p.join("sidecar.json");
-                                                            if let Ok(mut sidecar_file) = fs::File::create(&sidecar_path) {
-                                                                let _ = std::io::copy(&mut json_zf, &mut sidecar_file);
+                                                            let sidecar_path =
+                                                                p.join("sidecar.json");
+                                                            if let Ok(mut sidecar_file) =
+                                                                fs::File::create(&sidecar_path)
+                                                            {
+                                                                let _ = std::io::copy(
+                                                                    &mut json_zf,
+                                                                    &mut sidecar_file,
+                                                                );
                                                             }
                                                         }
                                                     }
@@ -548,62 +568,54 @@ impl<'a> Processor<'a> {
 
                                     match extract_res {
                                         Ok(size) => {
-                                            let prev = extracted_bytes
-                                                .fetch_add(size, Ordering::Relaxed);
+                                            let prev =
+                                                extracted_bytes.fetch_add(size, Ordering::Relaxed);
                                             let current_cnt = completed_extracted
                                                 .fetch_add(1, Ordering::Relaxed)
                                                 + 1;
-                                            if (prev + size) / 500_000_000
-                                                > prev / 500_000_000
-                                            {
+                                            if (prev + size) / 500_000_000 > prev / 500_000_000 {
                                                 let avail = self
                                                     .disk_checker
                                                     .available_bytes(&self.output_dir);
-                                                if avail < 5_000_000_000
-                                                    && avail != u64::MAX
-                                                {
-                                                    self.publisher
-                                                        .publish(AppEvent::Error {
+                                                if avail < 5_000_000_000 && avail != u64::MAX {
+                                                    self.publisher.publish(AppEvent::Error {
                                                         file_id: None,
                                                         fatal: true,
-                                                        message:
-                                                            "Disk full during extraction"
-                                                                .into(),
-                                                     });
-                                                     cancel.store(true, Ordering::Relaxed);
+                                                        message: "Disk full during extraction"
+                                                            .into(),
+                                                    });
+                                                    cancel.store(true, Ordering::Relaxed);
                                                 }
                                             }
-                                            if current_cnt.is_multiple_of(25) || current_cnt == grand_total {
-                                                self.publisher.publish(
-                                                    AppEvent::ProgressStats {
-                                                        completed: current_cnt,
-                                                        total: grand_total,
-                                                        eta_seconds: None,
-                                                        speed_bps: size,
-                                                    },
-                                                );
+                                            if current_cnt.is_multiple_of(25)
+                                                || current_cnt == grand_total
+                                            {
+                                                self.publisher.publish(AppEvent::ProgressStats {
+                                                    completed: current_cnt,
+                                                    total: grand_total,
+                                                    eta_seconds: None,
+                                                    speed_bps: size,
+                                                });
                                             }
                                             let _ = tx.send(((*media).clone(), dest));
                                         }
                                         Err(e) => {
-                                            let current_cnt = completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
-                                            if current_cnt.is_multiple_of(25) || current_cnt == grand_total {
-                                                self.publisher.publish(
-                                                    AppEvent::ProgressStats {
-                                                        completed: current_cnt,
-                                                        total: grand_total,
-                                                        eta_seconds: None,
-                                                        speed_bps: 0,
-                                                    },
-                                                );
-                                            }
-                                            if let Err(db_err) = self
-                                                .db
-                                                .enqueue_status_update(StatusUpdate::Error(
-                                                    media.id,
-                                                    e.to_string(),
-                                                ))
+                                            let current_cnt = completed_extracted
+                                                .fetch_add(1, Ordering::Relaxed)
+                                                + 1;
+                                            if current_cnt.is_multiple_of(25)
+                                                || current_cnt == grand_total
                                             {
+                                                self.publisher.publish(AppEvent::ProgressStats {
+                                                    completed: current_cnt,
+                                                    total: grand_total,
+                                                    eta_seconds: None,
+                                                    speed_bps: 0,
+                                                });
+                                            }
+                                            if let Err(db_err) = self.db.enqueue_status_update(
+                                                StatusUpdate::Error(media.id, e.to_string()),
+                                            ) {
                                                 self.publisher.publish(AppEvent::Error {
                                                     file_id: None,
                                                     fatal: true,
@@ -867,7 +879,8 @@ impl<'a> Processor<'a> {
                             .zip_json_index_cache
                             .lock()
                             .unwrap_or_else(|e| e.into_inner());
-                        if let Some(idx) = cache.get(archive).and_then(|m| m.get(internal).copied()) {
+                        if let Some(idx) = cache.get(archive).and_then(|m| m.get(internal).copied())
+                        {
                             Some(idx)
                         } else {
                             let map_opt = if let Ok(file) = std::fs::File::open(archive) {
