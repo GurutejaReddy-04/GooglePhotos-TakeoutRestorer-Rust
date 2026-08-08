@@ -164,15 +164,9 @@ impl ExifToolEngine {
             stdout_receiver: rx,
         });
 
-        // DEBUG + WARMUP: Send a -ver command to verify the process is responsive
-        eprintln!(
-            "[DEBUG][EXIFTOOL] Process spawned (pid={}), sending warmup -ver command...",
-            process_guard.as_ref().unwrap().child.id()
-        );
         {
             let ps = process_guard.as_mut().unwrap();
             if let Err(e) = writeln!(ps.stdin, "-ver") {
-                eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -ver: {}", e);
                 *process_guard = None;
                 return Err(AppError::ExifToolLaunchFailed(format!(
                     "Warmup write failed: {}",
@@ -180,7 +174,6 @@ impl ExifToolEngine {
                 )));
             }
             if let Err(e) = writeln!(ps.stdin, "-execute") {
-                eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to write -execute: {}", e);
                 *process_guard = None;
                 return Err(AppError::ExifToolLaunchFailed(format!(
                     "Warmup write failed: {}",
@@ -188,7 +181,6 @@ impl ExifToolEngine {
                 )));
             }
             if let Err(e) = ps.stdin.flush() {
-                eprintln!("[DEBUG][EXIFTOOL] WARMUP: Failed to flush: {}", e);
                 *process_guard = None;
                 return Err(AppError::ExifToolLaunchFailed(format!(
                     "Warmup flush failed: {}",
@@ -197,41 +189,29 @@ impl ExifToolEngine {
             }
 
             let warmup_timeout = Duration::from_secs(15);
-            let warmup_start = std::time::Instant::now();
             let mut got_ready = false;
             loop {
                 match ps.stdout_receiver.recv_timeout(warmup_timeout) {
                     Ok(line) => {
-                        eprintln!("[DEBUG][EXIFTOOL] WARMUP received line: '{}'", line);
                         if line.trim() == "{ready}" {
                             got_ready = true;
                             break;
                         }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                        eprintln!(
-                            "[DEBUG][EXIFTOOL] WARMUP TIMEOUT after {:?} — process is NOT responsive!",
-                            warmup_start.elapsed()
-                        );
                         break;
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
-                        eprintln!("[DEBUG][EXIFTOOL] WARMUP DISCONNECTED — process crashed during warmup!");
                         break;
                     }
                 }
             }
             if !got_ready {
-                eprintln!("[DEBUG][EXIFTOOL] WARMUP FAILED — killing process and returning error");
                 *process_guard = None;
                 return Err(AppError::ExifToolLaunchFailed(
                     "ExifTool process not responsive during warmup".to_string(),
                 ));
             }
-            eprintln!(
-                "[DEBUG][EXIFTOOL] WARMUP OK — process responsive in {:?}",
-                warmup_start.elapsed()
-            );
         }
 
         Ok(())
@@ -246,15 +226,6 @@ impl ExifToolEngine {
             None => return Err(AppError::ExifToolCrashed),
         };
 
-        // DEBUG: Log ALL args being sent
-        eprintln!(
-            "[DEBUG][EXIFTOOL] EXECUTE: sending {} args to stdin:",
-            args.len()
-        );
-        for (i, arg) in args.iter().enumerate() {
-            eprintln!("  [DEBUG][EXIFTOOL]   arg[{}] = '{}'", i, arg);
-        }
-
         let mut batch = String::with_capacity(args.len() * 64 + 16);
         for arg in args {
             let sanitized_arg = arg.replace(['\r', '\n'], " ");
@@ -265,34 +236,23 @@ impl ExifToolEngine {
 
         if let Err(e) = process_state.stdin.write_all(batch.as_bytes()) {
             error!("Failed to write batch to ExifTool stdin: {}", e);
-            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: stdin batch write FAILED: {}", e);
             *process_guard = None; // Force restart next time
             return Err(AppError::Io(e));
         }
         if let Err(e) = process_state.stdin.flush() {
             error!("Failed to flush ExifTool stdin: {}", e);
-            eprintln!("[DEBUG][EXIFTOOL] EXECUTE: flush FAILED: {}", e);
             *process_guard = None;
             return Err(AppError::Io(e));
         }
-        eprintln!(
-            "[DEBUG][EXIFTOOL] EXECUTE: all args written + flushed, waiting for {{ready}}..."
-        );
 
         let mut output = String::new();
         let timeout = Duration::from_secs(TIMEOUT_SECS);
-        let exec_start = std::time::Instant::now();
 
         loop {
             match process_state.stdout_receiver.recv_timeout(timeout) {
                 Ok(line) => {
                     let trimmed = line.trim();
                     if trimmed == "{ready}" {
-                        eprintln!(
-                            "[DEBUG][EXIFTOOL] EXECUTE: got {{ready}} in {:?} | output_len={}",
-                            exec_start.elapsed(),
-                            output.len()
-                        );
                         break;
                     }
                     if !output.is_empty() {
@@ -302,11 +262,6 @@ impl ExifToolEngine {
                 }
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                     error!("ExifTool read timeout");
-                    eprintln!(
-                        "[DEBUG][EXIFTOOL] EXECUTE: TIMEOUT after {:?} | output_so_far='{}'",
-                        exec_start.elapsed(),
-                        output
-                    );
                     *process_guard = None;
                     return Err(AppError::ExifToolLaunchFailed(
                         "ExifTool timeout".to_string(),
@@ -314,10 +269,6 @@ impl ExifToolEngine {
                 }
                 Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                     error!("ExifTool process disconnected");
-                    eprintln!(
-                        "[DEBUG][EXIFTOOL] EXECUTE: DISCONNECTED | output_so_far='{}'",
-                        output
-                    );
                     *process_guard = None;
                     return Err(AppError::ExifToolCrashed);
                 }
@@ -481,13 +432,7 @@ struct EngineGuard<'a> {
 impl<'a> Drop for EngineGuard<'a> {
     fn drop(&mut self) {
         if let Some(engine) = self.engine.take() {
-            let available_before = self.sender.len();
             let _ = self.sender.send(engine);
-            eprintln!(
-                "[DEBUG][EXIFTOOL] RETURN | available_before_return={} | thread={:?}",
-                available_before,
-                std::thread::current().id()
-            );
         }
     }
 }
@@ -514,38 +459,19 @@ impl ExifToolPool {
     where
         F: FnOnce(&ExifToolEngine) -> Result<R, AppError>,
     {
-        let _available_before = self.receiver.len();
-        let checkout_start = std::time::Instant::now();
         let timeout = Duration::from_secs(300);
         let engine = self.receiver.recv_timeout(timeout).map_err(|_| {
-            eprintln!(
-                "[DEBUG][EXIFTOOL] CHECKOUT TIMEOUT after 300s | available={}/{}",
-                self.receiver.len(),
-                self.pool_size
-            );
             AppError::ExifToolLaunchFailed(
                 "Timeout waiting for ExifTool engine from pool".to_string(),
             )
         })?;
-
-        let checkout_elapsed = checkout_start.elapsed();
-        let available_after = self.receiver.len();
-        let checked_out = self.pool_size - available_after;
-        eprintln!(
-            "[DEBUG][EXIFTOOL] CHECKOUT | wait={:?} | checked_out={} | available={} | pool_size={} | thread={:?}",
-            checkout_elapsed, checked_out, available_after, self.pool_size, std::thread::current().id()
-        );
 
         let guard = EngineGuard {
             engine: Some(engine),
             sender: &self.sender,
         };
 
-        let result = f(guard.engine.as_ref().unwrap());
-
-        // Note: EngineGuard::drop will return the engine to the pool
-        // We log the return in EngineGuard::drop below
-        result
+        f(guard.engine.as_ref().unwrap())
     }
 
     pub fn shutdown(&self) {

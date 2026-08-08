@@ -108,6 +108,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dispatcher_ctrlc = dispatcher.clone();
     ctrlc::set_handler(move || {
         let _ = dispatcher_ctrlc.dispatch(UiCommand::CancelProcessing);
+        // Ensure ExifTool child processes are killed on Ctrl+C
+        app_core::exiftool::cleanup_all_processes();
     })
     .map_err(|e| app_core::error::AppError::Io(std::io::Error::other(e.to_string())))?;
 
@@ -115,23 +117,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dispatcher.dispatch(UiCommand::StartProcessing)?;
 
     println!("--- Google Photos Takeout Restorer ---");
+    use std::io::Write;
+    let mut last_len: usize = 0;
     loop {
         let snapshot = snapshot_rx.wait_changed();
 
-        println!(
-            "[{}] Progress: {} | ETA: {} | Speed: {} | Phase: {}",
-            snapshot.generation_timestamp,
+        let line = format!(
+            "Progress: {} | ETA: {} | Speed: {} | Phase: {} | Errors: {}",
             snapshot.formatted_progress,
             snapshot.eta_text,
             snapshot.speed_text,
-            snapshot.current_phase_text
+            snapshot.current_phase_text,
+            snapshot.error_count,
         );
 
+        let pad_len = last_len.saturating_sub(line.len());
+        print!("\r{}{}", line, " ".repeat(pad_len));
+        let _ = std::io::stdout().flush();
+        last_len = line.len();
+
+        if !snapshot.fatal_error_message.is_empty() {
+            eprintln!("\nFATAL ERROR: {}", snapshot.fatal_error_message);
+        }
+
         if snapshot.is_finished {
+            println!();
             break;
         }
     }
 
-    println!("Restoration pipeline shut down cleanly.");
+    // Give the background pipeline thread time to finish cleanup
+    // (staging dir removal, DB flush, ExifTool shutdown).
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // Print final summary with error information
+    let final_snapshot = snapshot_rx.borrow();
+    if final_snapshot.has_errors {
+        eprintln!(
+            "Restoration completed with {} error(s). {} OK | {} skipped | {} unmatched.",
+            final_snapshot.error_count,
+            final_snapshot.ok_count,
+            final_snapshot.skipped_count,
+            final_snapshot.unmatched_count,
+        );
+        if !final_snapshot.fatal_error_message.is_empty() {
+            eprintln!("Fatal: {}", final_snapshot.fatal_error_message);
+        }
+    } else {
+        println!(
+            "Restoration completed successfully. {} files processed.",
+            final_snapshot.ok_count,
+        );
+    }
+
+    // Ensure all ExifTool zombie processes are forcefully killed on CLI exit
+    app_core::exiftool::cleanup_all_processes();
     Ok(())
 }
