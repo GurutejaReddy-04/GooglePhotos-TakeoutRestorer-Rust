@@ -1150,6 +1150,7 @@ dependencies = [
  "tracing-subscriber",
  "tzf-rs",
  "walkdir",
+ "windows-sys 0.61.2",
  "zip",
 ]
 
