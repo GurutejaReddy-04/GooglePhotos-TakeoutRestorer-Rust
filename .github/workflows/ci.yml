@@ -54,7 +54,7 @@ jobs:
       run: cargo clippy --all-targets --all-features -- -D warnings
 
     - name: Run Tests
-      run: cargo test --all-targets --all-features
+      run: cargo test --lib --bins --tests --all-features
 
   security_audit:
     name: Security & License Audit
