@@ -18,16 +18,18 @@ struct MatchCandidate<'a> {
 }
 
 pub struct Matcher<'a> {
-    json_map: HashMap<String, Vec<&'a JsonEntry>>,
+    json_map: HashMap<String, HashMap<String, &'a JsonEntry>>,
     config: &'a Config,
 }
 
 impl<'a> Matcher<'a> {
     pub fn new(json_pool: &'a [JsonEntry], config: &'a Config) -> Self {
-        let mut json_map: HashMap<String, Vec<&'a JsonEntry>> =
-            HashMap::with_capacity(json_pool.len());
+        let mut json_map: HashMap<String, HashMap<String, &'a JsonEntry>> = HashMap::new();
         for entry in json_pool {
-            json_map.entry(entry.path.folder()).or_default().push(entry);
+            json_map
+                .entry(entry.path.folder())
+                .or_default()
+                .insert(entry.filename.clone(), entry);
         }
 
         Self { json_map, config }
@@ -73,7 +75,7 @@ impl<'a> Matcher<'a> {
 
         // Tier 1: Exact Match (e.g. image.jpg -> image.jpg.json)
         let exact_target = format!("{}.json", media.filename);
-        if let Some(c) = candidates.iter().find(|j| j.filename == exact_target) {
+        if let Some(&c) = candidates.get(&exact_target) {
             return Some(MatchCandidate {
                 json: c,
                 tier: 1,
@@ -87,7 +89,7 @@ impl<'a> Matcher<'a> {
             .strip_suffix(&media.extension)
             .unwrap_or(&media.filename);
         let stripped_target = format!("{}.json", stem);
-        if let Some(c) = candidates.iter().find(|j| j.filename == stripped_target) {
+        if let Some(&c) = candidates.get(&stripped_target) {
             return Some(MatchCandidate {
                 json: c,
                 tier: 2,
@@ -103,7 +105,7 @@ impl<'a> Matcher<'a> {
             format!("{}-EDITED.json", stem),
         ];
         for target in &edited_variants {
-            if let Some(c) = candidates.iter().find(|j| j.filename == *target) {
+            if let Some(&c) = candidates.get(target) {
                 return Some(MatchCandidate {
                     json: c,
                     tier: 3,
@@ -128,7 +130,7 @@ impl<'a> Matcher<'a> {
             ];
 
             for target in &suffix_variants {
-                if let Some(c) = candidates.iter().find(|j| j.filename == *target) {
+                if let Some(&c) = candidates.get(target) {
                     debug!(
                         "Matched tier 3.5 suffix movement: {} -> {}",
                         media.filename, target
@@ -148,7 +150,7 @@ impl<'a> Matcher<'a> {
             let possible_image_exts = [".heic", ".HEIC", ".jpg", ".JPG", ".jpeg", ".JPEG"];
             for img_ext in &possible_image_exts {
                 let live_target = format!("{}{}.json", stem, img_ext);
-                if let Some(c) = candidates.iter().find(|j| j.filename == live_target) {
+                if let Some(&c) = candidates.get(&live_target) {
                     return Some(MatchCandidate {
                         json: c,
                         tier: 4,
@@ -161,7 +163,7 @@ impl<'a> Matcher<'a> {
         // Tier 4.5: MP4 Truncation (video.mp4 -> video.mp.json)
         if ext_lower == ".mp4" {
             let mp_target = format!("{}.mp.json", stem);
-            if let Some(c) = candidates.iter().find(|j| j.filename == mp_target) {
+            if let Some(&c) = candidates.get(&mp_target) {
                 return Some(MatchCandidate {
                     json: c,
                     tier: 4,
@@ -194,10 +196,12 @@ impl<'a> Matcher<'a> {
                     ),
                 ];
 
-                let matches: Vec<_> = candidates
-                    .iter()
-                    .filter(|c| variants.contains(&c.filename))
-                    .collect();
+                let mut matches = Vec::new();
+                for v in &variants {
+                    if let Some(&c) = candidates.get(v) {
+                        matches.push(c);
+                    }
+                }
 
                 if matches.len() == 1 {
                     debug!(
@@ -219,7 +223,7 @@ impl<'a> Matcher<'a> {
             format!("{}.supplemental-metadata.json", stem),
         ];
         for target in &supp_variants {
-            if let Some(c) = candidates.iter().find(|j| j.filename == *target) {
+            if let Some(&c) = candidates.get(target) {
                 debug!(
                     "Matched tier 5.5 supplemental metadata: {} -> {}",
                     media.filename, target
@@ -249,7 +253,7 @@ impl<'a> Matcher<'a> {
 
         let mut min_distance = dynamic_threshold as usize + 1;
 
-        for c in candidates.iter() {
+        for c in candidates.values() {
             let json_base = c.filename.to_lowercase();
             // Compare base names without extension if possible
             let mut json_stem = json_base.strip_suffix(".json").unwrap_or(&json_base);

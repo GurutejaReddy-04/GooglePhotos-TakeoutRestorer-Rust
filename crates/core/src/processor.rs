@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use tracing::{debug, error, info};
 
@@ -27,17 +27,14 @@ pub trait DiskSpaceChecker: Send + Sync {
     fn available_bytes(&self, path: &Path) -> u64;
 }
 
-/// A concrete implementation of `DiskSpaceChecker` using the `sysinfo` crate.
-/// This checks the actual system mounts to determine free space on the destination drive.
-pub struct SysinfoDiskChecker {
-    _sys: std::sync::Mutex<sysinfo::System>,
-}
+/// A concrete implementation of `DiskSpaceChecker` that queries only the target drive.
+/// This avoids `sysinfo::Disks::new_with_refreshed_list()` which enumerates ALL system
+/// drives and can hang indefinitely on Windows when network/USB/optical drives are unresponsive.
+pub struct SysinfoDiskChecker;
 
 impl SysinfoDiskChecker {
     pub fn new() -> Self {
-        Self {
-            _sys: std::sync::Mutex::new(sysinfo::System::new_all()),
-        }
+        Self
     }
 }
 
@@ -49,30 +46,57 @@ impl Default for SysinfoDiskChecker {
 
 impl DiskSpaceChecker for SysinfoDiskChecker {
     fn available_bytes(&self, path: &Path) -> u64 {
-        use sysinfo::Disks;
-        let disks = Disks::new_with_refreshed_list();
-        // Find the disk that contains the path
-        let mut best_match: Option<&sysinfo::Disk> = None;
-        let mut best_len = 0;
-
-        for disk in &disks {
-            let mount_point = disk.mount_point();
-            if path.starts_with(mount_point) {
-                let len = mount_point.as_os_str().len();
-                if len > best_len {
-                    best_len = len;
-                    best_match = Some(disk);
-                }
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStrExt;
+            // Use GetDiskFreeSpaceExW to query only the target path's drive,
+            // avoiding full disk enumeration that can hang on unresponsive drives.
+            let wide_path: Vec<u16> = path
+                .as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+            let mut free_bytes_available: u64 = 0;
+            let ret = unsafe {
+                windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(
+                    wide_path.as_ptr(),
+                    &mut free_bytes_available as *mut u64,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            };
+            if ret != 0 {
+                free_bytes_available
+            } else {
+                u64::MAX // Fallback if API call fails
             }
         }
-
-        if let Some(disk) = best_match {
-            disk.available_space()
-        } else {
-            u64::MAX // Fallback if we can't determine the disk
+        #[cfg(not(windows))]
+        {
+            // On non-Windows, use sysinfo as a fallback
+            use sysinfo::Disks;
+            let disks = Disks::new_with_refreshed_list();
+            let mut best_match: Option<&sysinfo::Disk> = None;
+            let mut best_len = 0;
+            for disk in &disks {
+                let mount_point = disk.mount_point();
+                if path.starts_with(mount_point) {
+                    let len = mount_point.as_os_str().len();
+                    if len > best_len {
+                        best_len = len;
+                        best_match = Some(disk);
+                    }
+                }
+            }
+            if let Some(disk) = best_match {
+                disk.available_space()
+            } else {
+                u64::MAX
+            }
         }
     }
 }
+
 
 /// The central processor that orchestrates the matching and metadata restoration phases.
 /// It coordinates the `StateDatabase`, `Matcher`, and `ExifToolPool` to process files
@@ -214,152 +238,16 @@ impl<'a> Processor<'a> {
                 .get_total_media_count()
                 .unwrap_or(ready_files.len() as u64);
             let restoration_started = std::sync::Arc::clone(&restoration_started);
-            let extracted_bytes_clone = std::sync::Arc::clone(&extracted_bytes);
-            // ============================================================
-            // DEBUG INSTRUMENTATION: Atomic counters for monitoring
-            // ============================================================
-            let dbg_producer_extracted = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_producer_send_ok = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_producer_send_blocked = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_consumer_received = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_consumer_completed = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_producer_done = std::sync::Arc::new(AtomicBool::new(false));
-            let dbg_consumer_done = std::sync::Arc::new(AtomicBool::new(false));
-            let dbg_last_completed_file = std::sync::Arc::new(Mutex::new(String::new()));
-            let dbg_last_completed_id = std::sync::Arc::new(AtomicUsize::new(0));
-            let dbg_outstanding_files =
-                std::sync::Arc::new(Mutex::new(Vec::<(i64, String)>::new()));
 
             std::thread::scope(|s| {
-                let (tx, rx) = std::sync::mpsc::sync_channel(100);
+                let (tx, rx) = std::sync::mpsc::sync_channel(2000);
 
                 let pool_size = self.pool.total_size();
 
-                // ============================================================
-                // DEBUG: Monitor thread - prints stats every second
-                // ============================================================
-                let mon_producer_extracted = std::sync::Arc::clone(&dbg_producer_extracted);
-                let mon_producer_send_ok = std::sync::Arc::clone(&dbg_producer_send_ok);
-                let mon_producer_send_blocked = std::sync::Arc::clone(&dbg_producer_send_blocked);
-                let mon_consumer_received = std::sync::Arc::clone(&dbg_consumer_received);
-                let mon_consumer_completed = std::sync::Arc::clone(&dbg_consumer_completed);
-                let mon_producer_done = std::sync::Arc::clone(&dbg_producer_done);
-                let mon_consumer_done = std::sync::Arc::clone(&dbg_consumer_done);
-                let mon_last_completed_file = std::sync::Arc::clone(&dbg_last_completed_file);
-                let mon_last_completed_id = std::sync::Arc::clone(&dbg_last_completed_id);
-                let mon_outstanding = std::sync::Arc::clone(&dbg_outstanding_files);
-                let mon_pool = self.pool;
-                s.spawn(move || {
-                    let mut last_completed_count = 0usize;
-                    let mut stall_start: Option<std::time::Instant> = None;
-                    let mut stall_dumped = false;
-
-                    loop {
-                        std::thread::sleep(std::time::Duration::from_secs(1));
-
-                        let p_extracted = mon_producer_extracted.load(Ordering::Relaxed);
-                        let p_sent = mon_producer_send_ok.load(Ordering::Relaxed);
-                        let p_blocked = mon_producer_send_blocked.load(Ordering::Relaxed);
-                        let c_received = mon_consumer_received.load(Ordering::Relaxed);
-                        let c_completed = mon_consumer_completed.load(Ordering::Relaxed);
-                        let p_done = mon_producer_done.load(Ordering::Relaxed);
-                        let c_done = mon_consumer_done.load(Ordering::Relaxed);
-                        let last_file = mon_last_completed_file.lock().unwrap_or_else(|e| e.into_inner()).clone();
-                        let last_id = mon_last_completed_id.load(Ordering::Relaxed);
-                        let exiftool_available = mon_pool.available_count();
-                        let exiftool_total = mon_pool.total_size();
-                        let exiftool_busy = exiftool_total.saturating_sub(exiftool_available);
-                        let channel_pending = p_sent.saturating_sub(c_received);
-                        let rayon_threads = rayon::current_num_threads();
-
-                        eprintln!(
-                            "\n[DEBUG][MONITOR] ========== 1-SECOND STATS ==========\n\
-                             [DEBUG][MONITOR] Producer: extracted={} | sent={} | blocked_sends={} | done={}\n\
-                             [DEBUG][MONITOR] Channel: pending_in_channel=~{} (sent-received)\n\
-                             [DEBUG][MONITOR] Consumer: received={} | completed={} | done={}\n\
-                             [DEBUG][MONITOR] ExifTool: available={} | busy={} | pool_size={}\n\
-                             [DEBUG][MONITOR] Rayon: global_thread_count={}\n\
-                             [DEBUG][MONITOR] Last completed: id={} file='{}'\n\
-                             [DEBUG][MONITOR] ==============================================",
-                            p_extracted, p_sent, p_blocked, p_done,
-                            channel_pending,
-                            c_received, c_completed, c_done,
-                            exiftool_available, exiftool_busy, exiftool_total,
-                            rayon_threads,
-                            last_id, last_file
-                        );
-
-                        // Stall detection (Requirement 8)
-                        if c_completed == last_completed_count && c_completed > 0 && !c_done {
-                            if stall_start.is_none() {
-                                stall_start = Some(std::time::Instant::now());
-                            }
-                            if let Some(start) = stall_start {
-                                let stall_secs = start.elapsed().as_secs();
-                                if stall_secs >= 10 && !stall_dumped {
-                                    stall_dumped = true;
-                                    let outstanding = mon_outstanding.lock().unwrap_or_else(|e| e.into_inner()).clone();
-                                    eprintln!(
-                                        "\n[DEBUG][STALL] !!! PROCESSING STALLED FOR {} SECONDS !!!\n\
-                                         [DEBUG][STALL] ========== FULL STATE DUMP ==========\n\
-                                         [DEBUG][STALL] Producer: extracted={} | sent={} | blocked_sends={} | done={}\n\
-                                         [DEBUG][STALL] Channel: pending_in_channel=~{}\n\
-                                         [DEBUG][STALL] Consumer: received={} | completed={} | done={}\n\
-                                         [DEBUG][STALL] ExifTool: available={} | busy={} | pool_size={}\n\
-                                         [DEBUG][STALL] Rayon: global_thread_count={}\n\
-                                         [DEBUG][STALL] Last completed file: id={} file='{}'\n\
-                                         [DEBUG][STALL] Outstanding files ({} total):",
-                                        stall_secs,
-                                        p_extracted, p_sent, p_blocked, p_done,
-                                        channel_pending,
-                                        c_received, c_completed, c_done,
-                                        exiftool_available, exiftool_busy, exiftool_total,
-                                        rayon_threads,
-                                        last_id, last_file,
-                                        outstanding.len()
-                                    );
-                                    for (oid, oname) in &outstanding {
-                                        eprintln!("[DEBUG][STALL]   id={} file='{}'", oid, oname);
-                                    }
-                                    eprintln!("[DEBUG][STALL] ========== END STATE DUMP ==========");
-                                }
-                            }
-                        } else {
-                            last_completed_count = c_completed;
-                            stall_start = None;
-                            stall_dumped = false;
-                        }
-
-                        // Exit when both producer and consumer are done
-                        if p_done && c_done {
-                            eprintln!("[DEBUG][MONITOR] Both producer and consumer done. Monitor exiting.");
-                            break;
-                        }
-                    }
-                });
-
                 // Consumer thread pool: EXIF processing
-                let con_consumer_received = std::sync::Arc::clone(&dbg_consumer_received);
-                let con_consumer_completed = std::sync::Arc::clone(&dbg_consumer_completed);
-                let con_consumer_done = std::sync::Arc::clone(&dbg_consumer_done);
-                let con_last_completed_file = std::sync::Arc::clone(&dbg_last_completed_file);
-                let con_last_completed_id = std::sync::Arc::clone(&dbg_last_completed_id);
-                let con_outstanding = std::sync::Arc::clone(&dbg_outstanding_files);
                 s.spawn(move || {
                     rx.into_iter().par_bridge().for_each(
                         |(media, original_target_path): (MediaFile, PathBuf)| {
-                            // DEBUG: Log every item consumed (Requirement 2)
-                            let recv_seq = con_consumer_received.fetch_add(1, Ordering::Relaxed) + 1;
-                            eprintln!(
-                                "[DEBUG][CONSUMER] RECEIVED #{} | id={} | file='{}' | thread={:?}",
-                                recv_seq, media.id, media.filename, std::thread::current().id()
-                            );
-                            // Track outstanding files
-                            {
-                                let mut outstanding = con_outstanding.lock().unwrap_or_else(|e| e.into_inner());
-                                outstanding.push((media.id, media.filename.clone()));
-                            }
-
                             if cancel.load(Ordering::Relaxed) {
                                 return;
                             }
@@ -411,7 +299,6 @@ impl<'a> Processor<'a> {
                                 drop(_lock);
                             }
 
-                            let process_start = std::time::Instant::now();
                             match self.process_metadata(&media, &target_path) {
                                 Ok(parsed_meta) => {
                                     // Set filesystem timestamps to the photo taken time
@@ -452,24 +339,6 @@ impl<'a> Processor<'a> {
                                         status: FileStatus::Completed,
                                         bytes_written,
                                     });
-
-                                    // DEBUG: Log completion (Requirements 4, 5)
-                                    let elapsed = process_start.elapsed();
-                                    let completed_seq = con_consumer_completed.fetch_add(1, Ordering::Relaxed) + 1;
-                                    {
-                                        let mut last = con_last_completed_file.lock().unwrap_or_else(|e| e.into_inner());
-                                        *last = media.filename.clone();
-                                    }
-                                    con_last_completed_id.store(media.id as usize, Ordering::Relaxed);
-                                    eprintln!(
-                                        "[DEBUG][CONSUMER] COMPLETED #{} | id={} | file='{}' | elapsed={:?} | thread={:?}",
-                                        completed_seq, media.id, media.filename, elapsed, std::thread::current().id()
-                                    );
-                                    // Remove from outstanding
-                                    {
-                                        let mut outstanding = con_outstanding.lock().unwrap_or_else(|e| e.into_inner());
-                                        outstanding.retain(|(id, _)| *id != media.id);
-                                    }
                                 }
                                 Err(e) => {
                                     error!(
@@ -501,19 +370,6 @@ impl<'a> Processor<'a> {
                                         status: FileStatus::Error,
                                         bytes_written: 0,
                                     });
-
-                                    // DEBUG: Also count errors as completed for monitor
-                                    let elapsed = process_start.elapsed();
-                                    let completed_seq = con_consumer_completed.fetch_add(1, Ordering::Relaxed) + 1;
-                                    eprintln!(
-                                        "[DEBUG][CONSUMER] ERROR #{} | id={} | file='{}' | error='{}' | elapsed={:?}",
-                                        completed_seq, media.id, media.filename, e, elapsed
-                                    );
-                                    // Remove from outstanding
-                                    {
-                                        let mut outstanding = con_outstanding.lock().unwrap_or_else(|e| e.into_inner());
-                                        outstanding.retain(|(id, _)| *id != media.id);
-                                    }
                                 }
                             }
 
@@ -528,15 +384,10 @@ impl<'a> Processor<'a> {
                             }
                         },
                     );
-                    con_consumer_done.store(true, Ordering::Relaxed);
-                    eprintln!("[DEBUG][CONSUMER] par_bridge iterator exhausted. Consumer thread exiting.");
                 });
 
                 // Producer thread: Extraction
-                let extracted_bytes = extracted_bytes_clone;
-                let prod_extracted = std::sync::Arc::clone(&dbg_producer_extracted);
-                let prod_send_ok = std::sync::Arc::clone(&dbg_producer_send_ok);
-                let prod_send_blocked = std::sync::Arc::clone(&dbg_producer_send_blocked);
+                let extracted_bytes = std::sync::Arc::clone(&extracted_bytes);
                 for media in real_files {
                     if cancel.load(Ordering::Relaxed) {
                         break;
@@ -545,23 +396,7 @@ impl<'a> Processor<'a> {
                     if let Ok(true) = self.db.try_mark_processing(media.id) {
                         if self.config.processing.output_mode == OutputMode::InPlace {
                             if let FilePath::Real { abs: p, .. } = &media.path {
-                                // DEBUG: Timed send (Requirement 1)
-                                let send_start = std::time::Instant::now();
                                 let _ = tx.send((media.clone(), p.clone()));
-                                let send_elapsed = send_start.elapsed();
-                                prod_send_ok.fetch_add(1, Ordering::Relaxed);
-                                if send_elapsed > std::time::Duration::from_millis(100) {
-                                    prod_send_blocked.fetch_add(1, Ordering::Relaxed);
-                                    eprintln!(
-                                        "[DEBUG][PRODUCER] SEND BLOCKED {:?} | id={} | file='{}' | thread={:?}",
-                                        send_elapsed, media.id, media.filename, std::thread::current().id()
-                                    );
-                                } else {
-                                    eprintln!(
-                                        "[DEBUG][PRODUCER] SEND OK {:?} | id={} | file='{}'",
-                                        send_elapsed, media.id, media.filename
-                                    );
-                                }
                             }
                         } else if let FilePath::Real { abs: p, .. } = &media.path {
                             if let Some(parent) = dest.parent() {
@@ -585,43 +420,17 @@ impl<'a> Processor<'a> {
                                     cancel.store(true, Ordering::Relaxed);
                                 }
                             } else {
-                                prod_extracted.fetch_add(1, Ordering::Relaxed);
-                                // DEBUG: Timed send (Requirement 1)
-                                let send_start = std::time::Instant::now();
                                 let _ = tx.send((media.clone(), dest));
-                                let send_elapsed = send_start.elapsed();
-                                prod_send_ok.fetch_add(1, Ordering::Relaxed);
-                                if send_elapsed > std::time::Duration::from_millis(100) {
-                                    prod_send_blocked.fetch_add(1, Ordering::Relaxed);
-                                    eprintln!(
-                                        "[DEBUG][PRODUCER] SEND BLOCKED {:?} | id={} | file='{}' | thread={:?}",
-                                        send_elapsed, media.id, media.filename, std::thread::current().id()
-                                    );
-                                } else {
-                                    eprintln!(
-                                        "[DEBUG][PRODUCER] SEND OK {:?} | id={} | file='{}'",
-                                        send_elapsed, media.id, media.filename
-                                    );
-                                }
                             }
                         }
                     }
                 }
 
                 let completed_extracted = std::sync::Arc::clone(&completed_extracted);
-                let prod_extracted_zip = std::sync::Arc::clone(&dbg_producer_extracted);
-                let prod_send_ok_zip = std::sync::Arc::clone(&dbg_producer_send_ok);
-                let prod_send_blocked_zip = std::sync::Arc::clone(&dbg_producer_send_blocked);
                 for (archive_path, files) in archive_map {
                     if cancel.load(Ordering::Relaxed) {
                         break;
                     }
-
-                    eprintln!(
-                        "[DEBUG][PRODUCER] Processing archive: {} ({} files)",
-                        archive_path.display(),
-                        files.len()
-                    );
 
                     let file_result = fs::File::open(&archive_path);
                     if let Ok(file) = file_result {
@@ -633,24 +442,24 @@ impl<'a> Processor<'a> {
                                 })
                                 .collect();
 
-                            files.iter().for_each(|media| {
-                                // DEBUG: Log iter entry
-                                eprintln!(
-                                    "[DEBUG][PRODUCER] ITER ENTERED | id={} | file='{}' | thread={:?}",
-                                    media.id, media.filename, std::thread::current().id()
-                                );
+                            // Pre-populate the zip index cache so consumer threads
+                            // don't redundantly rebuild it (thundering herd prevention).
+                            {
+                                let mut cache = self
+                                    .zip_json_index_cache
+                                    .lock()
+                                    .unwrap_or_else(|e| e.into_inner());
+                                cache.insert(archive_path.clone(), name_to_index.clone());
+                            }
 
+                            for media in files.iter() {
                                 if cancel.load(Ordering::Relaxed) {
-                                    return;
+                                    continue;
                                 }
 
                                 let dest = self.resolve_staging_path(media);
                                 let is_claimed = self.db.try_mark_processing(media.id).unwrap_or(false);
                                 if !is_claimed {
-                                    eprintln!(
-                                        "[DEBUG][PRODUCER] SKIPPED (not claimed) | id={} | file='{}'",
-                                        media.id, media.filename
-                                    );
                                     let current_cnt = completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
                                     if current_cnt.is_multiple_of(25) || current_cnt == grand_total {
                                         self.publisher.publish(AppEvent::ProgressStats {
@@ -660,7 +469,7 @@ impl<'a> Processor<'a> {
                                             speed_bps: 0,
                                         });
                                     }
-                                    return;
+                                    continue;
                                 }
 
                                 if let FilePath::Zip { internal, .. } = &media.path {
@@ -671,9 +480,8 @@ impl<'a> Processor<'a> {
                                                 internal
                                             )))
                                         })?;
-                                        let file = fs::File::open(&archive_path)
-                                            .map_err(AppError::Io)?;
-                                         let mut zip = zip::ZipArchive::new(file)?;
+                                        // Reuse the outer zip handle — avoids re-reading
+                                        // the central directory for each extraction.
                                         let mut zip_file = zip.by_index(idx)?;
 
                                         if let Some(p) = dest.parent() {
@@ -703,6 +511,7 @@ impl<'a> Processor<'a> {
                                             AppError::Io(e)
                                         })?;
                                         drop(out_file);
+                                        drop(zip_file);
 
                                         if size > MAX_SAFE_FILE_SIZE {
                                             let _ = fs::remove_file(&temp_dest);
@@ -715,12 +524,30 @@ impl<'a> Processor<'a> {
                                             let _ = fs::remove_file(&temp_dest);
                                             AppError::Io(e)
                                         })?;
+
+                                        // Sidecar JSON Staging Optimization:
+                                        // If media has a matched sidecar JSON in the same archive,
+                                        // extract it directly to dest.parent()/sidecar.json using our open zip handle.
+                                        if let Some(FilePath::Zip { archive: json_archive, internal: json_internal }) = &media.json_path {
+                                            if json_archive == &archive_path {
+                                                if let Some(&json_idx) = name_to_index.get(json_internal) {
+                                                    if let Ok(mut json_zf) = zip.by_index(json_idx) {
+                                                        if let Some(p) = dest.parent() {
+                                                            let sidecar_path = p.join("sidecar.json");
+                                                            if let Ok(mut sidecar_file) = fs::File::create(&sidecar_path) {
+                                                                let _ = std::io::copy(&mut json_zf, &mut sidecar_file);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         Ok(size)
                                     })();
 
                                     match extract_res {
                                         Ok(size) => {
-                                            prod_extracted_zip.fetch_add(1, Ordering::Relaxed);
                                             let prev = extracted_bytes
                                                 .fetch_add(size, Ordering::Relaxed);
                                             let current_cnt = completed_extracted
@@ -756,23 +583,7 @@ impl<'a> Processor<'a> {
                                                     },
                                                 );
                                             }
-                                            // DEBUG: Timed send (Requirement 1)
-                                            let send_start = std::time::Instant::now();
                                             let _ = tx.send(((*media).clone(), dest));
-                                            let send_elapsed = send_start.elapsed();
-                                            prod_send_ok_zip.fetch_add(1, Ordering::Relaxed);
-                                            if send_elapsed > std::time::Duration::from_millis(100) {
-                                                prod_send_blocked_zip.fetch_add(1, Ordering::Relaxed);
-                                                eprintln!(
-                                                    "[DEBUG][PRODUCER] SEND BLOCKED {:?} | id={} | file='{}' | archive='{}' | thread={:?}",
-                                                    send_elapsed, media.id, media.filename, archive_path.display(), std::thread::current().id()
-                                                );
-                                            } else {
-                                                eprintln!(
-                                                    "[DEBUG][PRODUCER] SEND OK {:?} | id={} | file='{}'",
-                                                    send_elapsed, media.id, media.filename
-                                                );
-                                            }
                                         }
                                         Err(e) => {
                                             let current_cnt = completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
@@ -810,14 +621,10 @@ impl<'a> Processor<'a> {
                                         }
                                     }
                                 }
-                            });
+                            }
                         }
                     }
                 }
-                dbg_producer_done.store(true, Ordering::Relaxed);
-                eprintln!(
-                    "[DEBUG][PRODUCER] All archives processed. Dropping tx (channel sender). producer_done=true"
-                );
                 drop(tx);
             });
         }
@@ -946,12 +753,14 @@ impl<'a> Processor<'a> {
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
         let _ = fs::create_dir_all(&dest_dir);
 
-        let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let dest_path = resolve_collision(&dest_dir, current_path);
+        let dest_path = {
+            let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+            resolve_collision(&dest_dir, current_path)
+        };
 
         match fs::rename(current_path, &dest_path) {
             Ok(_) => dest_path,
-            Err(_e) => match fs::copy(current_path, &dest_path) {
+            Err(_e) => match copy_buffered(current_path, &dest_path) {
                 Ok(_) => {
                     let _ = fs::remove_file(current_path);
                     dest_path
@@ -972,12 +781,14 @@ impl<'a> Processor<'a> {
             let _ = fs::create_dir_all(&dest_dir);
         }
 
-        let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let dest_path = resolve_collision(&dest_dir, current_path);
+        let dest_path = {
+            let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+            resolve_collision(&dest_dir, current_path)
+        };
 
         match fs::rename(current_path, &dest_path) {
             Ok(_) => dest_path,
-            Err(_e) => match fs::copy(current_path, &dest_path) {
+            Err(_e) => match copy_buffered(current_path, &dest_path) {
                 Ok(_) => {
                     let _ = fs::remove_file(current_path);
                     dest_path
@@ -1015,8 +826,30 @@ impl<'a> Processor<'a> {
             None => return Ok(None),
         };
 
-        let json_content = match json_path {
-            FilePath::Real { abs, .. } => std::fs::read_to_string(abs).map_err(AppError::Io)?,
+        // Fast-path: Check if producer pre-extracted sidecar.json into the staging directory
+        let json_content = if let Some(parent) = target_path.parent() {
+            let sidecar_file = parent.join("sidecar.json");
+            if sidecar_file.exists() {
+                std::fs::read_to_string(&sidecar_file).map_err(AppError::Io)?
+            } else {
+                self.read_json_from_source(json_path)?
+            }
+        } else {
+            self.read_json_from_source(json_path)?
+        };
+
+        let parsed = parse(json_content.as_bytes())?;
+
+        self.pool
+            .execute(|engine| engine.update_metadata(target_path, &parsed))?;
+
+        Ok(Some(parsed))
+    }
+
+    /// Reads JSON sidecar content from file system or zip archive fallback.
+    fn read_json_from_source(&self, json_path: &FilePath) -> Result<String, AppError> {
+        match json_path {
+            FilePath::Real { abs, .. } => std::fs::read_to_string(abs).map_err(AppError::Io),
             FilePath::Zip { archive, internal } => {
                 let idx = {
                     let cached_idx = {
@@ -1030,32 +863,35 @@ impl<'a> Processor<'a> {
                     if let Some(i) = cached_idx {
                         Some(i)
                     } else {
-                        // Build index outside the lock to prevent worker thread starvation
-                        let map_opt = if let Ok(file) = std::fs::File::open(archive) {
-                            if let Ok(mut zip) = zip::ZipArchive::new(file) {
-                                let map: HashMap<String, usize> = (0..zip.len())
-                                    .filter_map(|i| {
-                                        zip.by_index(i).ok().map(|f| (f.name().to_string(), i))
-                                    })
-                                    .collect();
-                                Some(map)
+                        let mut cache = self
+                            .zip_json_index_cache
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        if let Some(idx) = cache.get(archive).and_then(|m| m.get(internal).copied()) {
+                            Some(idx)
+                        } else {
+                            let map_opt = if let Ok(file) = std::fs::File::open(archive) {
+                                if let Ok(mut zip) = zip::ZipArchive::new(file) {
+                                    let map: HashMap<String, usize> = (0..zip.len())
+                                        .filter_map(|i| {
+                                            zip.by_index(i).ok().map(|f| (f.name().to_string(), i))
+                                        })
+                                        .collect();
+                                    Some(map)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            if let Some(map) = map_opt {
+                                let idx = map.get(internal).copied();
+                                cache.insert(archive.clone(), map);
+                                idx
                             } else {
                                 None
                             }
-                        } else {
-                            None
-                        };
-
-                        if let Some(map) = map_opt {
-                            let idx = map.get(internal).copied();
-                            let mut cache = self
-                                .zip_json_index_cache
-                                .lock()
-                                .unwrap_or_else(|e| e.into_inner());
-                            cache.insert(archive.clone(), map);
-                            idx
-                        } else {
-                            None
                         }
                     }
                 };
@@ -1066,24 +902,17 @@ impl<'a> Processor<'a> {
                     let mut zf = zip.by_index(i)?;
                     let mut s = String::new();
                     std::io::Read::read_to_string(&mut zf, &mut s).map_err(AppError::Io)?;
-                    s
+                    Ok(s)
                 } else {
                     let file = std::fs::File::open(archive).map_err(AppError::Io)?;
                     let mut zip = zip::ZipArchive::new(file)?;
                     let mut zf = zip.by_name(internal)?;
                     let mut s = String::new();
                     std::io::Read::read_to_string(&mut zf, &mut s).map_err(AppError::Io)?;
-                    s
+                    Ok(s)
                 }
             }
-        };
-
-        let parsed = parse(json_content.as_bytes())?;
-
-        self.pool
-            .execute(|engine| engine.update_metadata(target_path, &parsed))?;
-
-        Ok(Some(parsed))
+        }
     }
 }
 
@@ -1116,6 +945,15 @@ fn resolve_collision(dest_dir: &Path, current_path: &Path) -> PathBuf {
         counter += 1;
     }
     dest_path
+}
+
+fn copy_buffered(src: &Path, dst: &Path) -> std::io::Result<u64> {
+    use std::io::Write;
+    let mut reader = std::io::BufReader::with_capacity(1_048_576, std::fs::File::open(src)?);
+    let mut writer = std::io::BufWriter::with_capacity(1_048_576, std::fs::File::create(dst)?);
+    let size = std::io::copy(&mut reader, &mut writer)?;
+    writer.flush()?;
+    Ok(size)
 }
 
 #[cfg(test)]
