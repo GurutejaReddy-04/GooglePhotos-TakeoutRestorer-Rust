@@ -6,12 +6,24 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Statistics representing the results of a file scan operation.
 #[derive(Debug, Default)]
 pub struct ScanStats {
+    /// The number of valid media files (images/videos) discovered.
     pub media_count: usize,
+    /// The number of valid JSON sidecar metadata files discovered.
     pub json_count: usize,
 }
 
+/// Recursively scans input directories and ZIP archives to identify media files and JSON metadata sidecars.
+/// It validates zip archives for compression bombs and directly inserts discovered files into the SQLite database.
+///
+/// # Arguments
+/// * `inputs` - A list of paths to directories or `.zip` files to scan.
+/// * `db` - The SQLite state database where entries are inserted.
+/// * `config` - Application configuration containing supported extensions.
+/// * `cancel` - Atomic flag to abort the scan midway.
+/// * `publisher` - Event publisher for progress updates.
 pub fn scan_inputs(
     inputs: &[PathBuf],
     db: &StateDatabase,

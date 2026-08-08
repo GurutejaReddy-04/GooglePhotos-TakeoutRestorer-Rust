@@ -17,27 +17,35 @@ use shared_ui::{CommandDispatcher, SnapshotPolicy, UiCommand, ViewModelUpdater};
 #[cfg(feature = "gui")]
 use gui::GuiRunner;
 
+/// Command-line arguments for launching the application in headless or GUI mode.
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Google Photos Takeout Restorer", long_about = None)]
 struct Cli {
+    /// Launch the graphical user interface.
     #[arg(long, help = "Launch the graphical user interface")]
     gui: bool,
 
+    /// One or more input paths (directories or zip files) containing Google Takeout data.
     #[arg(required = false)]
     inputs: Vec<PathBuf>,
 
+    /// The destination directory where restored media will be saved.
     #[arg(short, long, required = false)]
     output: Option<PathBuf>,
 
+    /// Optional path to explicitly set the SQLite state database location.
     #[arg(long)]
     db_path: Option<PathBuf>,
 
+    /// If true, uses the system-installed ExifTool instead of the embedded downloader.
     #[arg(long)]
     use_system_exiftool: bool,
 }
 
 use app::CoreDispatcher;
 
+/// Entry point for the application. Initializes logging, parses CLI arguments,
+/// and delegates to either the `GuiRunner` or the headless `CoreDispatcher` depending on arguments.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_logging();
     let cli = Cli::parse();
@@ -100,6 +108,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dispatcher_ctrlc = dispatcher.clone();
     ctrlc::set_handler(move || {
         let _ = dispatcher_ctrlc.dispatch(UiCommand::CancelProcessing);
+        // Ensure ExifTool child processes are killed on Ctrl+C
+        app_core::exiftool::cleanup_all_processes();
     })
     .map_err(|e| app_core::error::AppError::Io(std::io::Error::other(e.to_string())))?;
 
@@ -107,23 +117,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dispatcher.dispatch(UiCommand::StartProcessing)?;
 
     println!("--- Google Photos Takeout Restorer ---");
+    use std::io::Write;
+    let mut last_len: usize = 0;
     loop {
         let snapshot = snapshot_rx.wait_changed();
 
-        println!(
-            "[{}] Progress: {} | ETA: {} | Speed: {} | Phase: {}",
-            snapshot.generation_timestamp,
+        let line = format!(
+            "Progress: {} | ETA: {} | Speed: {} | Phase: {} | Errors: {}",
             snapshot.formatted_progress,
             snapshot.eta_text,
             snapshot.speed_text,
-            snapshot.current_phase_text
+            snapshot.current_phase_text,
+            snapshot.error_count,
         );
 
+        let pad_len = last_len.saturating_sub(line.len());
+        print!("\r{}{}", line, " ".repeat(pad_len));
+        let _ = std::io::stdout().flush();
+        last_len = line.len();
+
+        if !snapshot.fatal_error_message.is_empty() {
+            eprintln!("\nFATAL ERROR: {}", snapshot.fatal_error_message);
+        }
+
         if snapshot.is_finished {
+            println!();
             break;
         }
     }
 
-    println!("Restoration pipeline shut down cleanly.");
+    // Give the background pipeline thread time to finish cleanup
+    // (staging dir removal, DB flush, ExifTool shutdown).
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // Print final summary with error information
+    let final_snapshot = snapshot_rx.borrow();
+    if final_snapshot.has_errors {
+        eprintln!(
+            "Restoration completed with {} error(s). {} OK | {} skipped | {} unmatched.",
+            final_snapshot.error_count,
+            final_snapshot.ok_count,
+            final_snapshot.skipped_count,
+            final_snapshot.unmatched_count,
+        );
+        if !final_snapshot.fatal_error_message.is_empty() {
+            eprintln!("Fatal: {}", final_snapshot.fatal_error_message);
+        }
+    } else {
+        println!(
+            "Restoration completed successfully. {} files processed.",
+            final_snapshot.ok_count,
+        );
+    }
+
+    // Ensure all ExifTool zombie processes are forcefully killed on CLI exit
+    app_core::exiftool::cleanup_all_processes();
     Ok(())
 }

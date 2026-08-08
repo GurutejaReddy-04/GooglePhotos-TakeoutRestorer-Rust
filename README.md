@@ -20,6 +20,10 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 
 **Google Photos Takeout Restorer** solves this completely by intelligently matching sidecar JSONs to media files (even across truncated names, unicode titles, and subfolders), re-embedding EXIF metadata via ExifTool, fixing misnamed file extensions ("auto-healing"), and setting filesystem creation/modification timestamps.
 
+> **Note: Independent Verification Status**
+> - **Verified by audit:** Timestamp setting (OS filesystem times), Auto-healing logic, CLI flags, `.zip` archive extraction (including zip-bomb protection).
+> - **Not independently verified:** While Unicode title matching and truncation handling are fully covered by the test suite, they have not been independently tested against real-world Google Takeout edge-cases beyond the included fixtures.
+
 ---
 
 ## 🎨 User Interface
