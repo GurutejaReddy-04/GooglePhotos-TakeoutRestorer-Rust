@@ -65,6 +65,16 @@ The app features both an intuitive, modern graphical interface (built with [Slin
 ### Pre-Built Installers
 Download the latest pre-built installers for Windows, macOS, or Linux from the [Latest Release](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases/latest) page.
 
+> [!NOTE]
+> **Windows SmartScreen Notice**  
+> Because this is a new open-source project and binaries are unsigned, Windows SmartScreen may display an *"unrecognized publisher"* or *"Windows protected your PC"* warning. This is standard behavior for new open-source software and is **not** an indication of malware.
+>
+> **To proceed with installation:**
+> 1. Click **More info** on the SmartScreen prompt.
+> 2. Click **Run anyway**.
+>
+> You can independently verify the safety and integrity of all release binaries by inspecting our open-source codebase and the automated build logs in our public [GitHub Actions CI pipeline](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions).
+
 ### Building from Source
 Clone the repository and build using Cargo:
 
