@@ -44,3 +44,15 @@ ExifTool's persistent `-stay_open` IPC protocol strictly requires **`\n` (LF)** 
 - **Accurate Profiling:** Anyone measuring micro-optimization performance must:
   1. Use larger test datasets containing **1,000+ real media files**.
   2. Benchmark against a real `exiftool` binary using the cargo benchmark suite (`cargo bench --bench exiftool_bench`).
+
+---
+
+## 4. Known Limitations & Future Optimization Architecture
+
+For a detailed breakdown of identified throughput governors, system audit findings, and future optimization milestones (v0.2.0), see [`ROADMAP.md`](./ROADMAP.md).
+
+Key architectural items tracked for future optimization include:
+1. **Global File Move Lock:** Replacing `FILE_MOVE_MUTEX` in `processor.rs` with lock-free atomic destination resolution.
+2. **Sidecar In-Memory Transport:** Eliminating sidecar `.json` disk staging write/read/delete roundtrips across the pipeline channel.
+3. **SQLite Connection Separation:** Splitting the single shared `Mutex<Connection>` into dedicated write and read connection pools.
+

@@ -534,7 +534,7 @@ export component MainWindow inherits Window {
                                             SettingRow {
                                                 icon: "📍";
                                                 title: "Restore EXIF GPS Location";
-                                                description: "Write latitude & longitude metadata to photos";
+                                                description: "Re-embed GPS from JSON (does not strip camera EXIF)";
                                                 checked: root.settings.gps_enabled;
                                                 enabled: !root.processing.is_processing;
                                                 toggled(val) => { root.update_setting("gps_enabled", val ? "true" : "false"); }

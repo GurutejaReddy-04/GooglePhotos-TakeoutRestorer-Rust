@@ -282,8 +282,10 @@ impl ExifToolEngine {
         &self,
         target_file: &Path,
         metadata: &ParsedMetadata,
+        gps_enabled: bool,
+        timezone_enabled: bool,
     ) -> Result<ExifToolResult, AppError> {
-        let args = build_metadata_args(target_file, metadata);
+        let args = build_metadata_args(target_file, metadata, gps_enabled, timezone_enabled);
         let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let output = self.execute(&args_ref)?;
 
@@ -291,7 +293,12 @@ impl ExifToolEngine {
     }
 }
 
-pub fn build_metadata_args(target_file: &Path, metadata: &ParsedMetadata) -> Vec<String> {
+pub fn build_metadata_args(
+    target_file: &Path,
+    metadata: &ParsedMetadata,
+    gps_enabled: bool,
+    timezone_enabled: bool,
+) -> Vec<String> {
     let mut args = vec!["-overwrite_original".to_string()];
 
     let ext = target_file
@@ -301,13 +308,17 @@ pub fn build_metadata_args(target_file: &Path, metadata: &ParsedMetadata) -> Vec
         .to_lowercase();
     let is_video = ext == "mp4" || ext == "mov";
 
-    let formatted_time = if let Some(gps) = &metadata.gps {
-        crate::timezone::format_localized_time(
-            gps.latitude,
-            gps.longitude,
-            metadata.taken_timestamp,
-        )
-        .unwrap_or_else(|| format_fallback_timestamp(metadata.taken_timestamp, is_video))
+    let formatted_time = if timezone_enabled {
+        if let Some(gps) = &metadata.gps {
+            crate::timezone::format_localized_time(
+                gps.latitude,
+                gps.longitude,
+                metadata.taken_timestamp,
+            )
+            .unwrap_or_else(|| format_fallback_timestamp(metadata.taken_timestamp, is_video))
+        } else {
+            format_fallback_timestamp(metadata.taken_timestamp, is_video)
+        }
     } else {
         format_fallback_timestamp(metadata.taken_timestamp, is_video)
     };
@@ -321,19 +332,21 @@ pub fn build_metadata_args(target_file: &Path, metadata: &ParsedMetadata) -> Vec
         args.push(format!("-AllDates={}", formatted_time));
     }
 
-    if let Some(gps) = &metadata.gps {
-        let lat_ref = if gps.latitude >= 0.0 { "N" } else { "S" };
-        let lon_ref = if gps.longitude >= 0.0 { "E" } else { "W" };
+    if gps_enabled {
+        if let Some(gps) = &metadata.gps {
+            let lat_ref = if gps.latitude >= 0.0 { "N" } else { "S" };
+            let lon_ref = if gps.longitude >= 0.0 { "E" } else { "W" };
 
-        args.push(format!("-GPSLatitude={}", gps.latitude.abs()));
-        args.push(format!("-GPSLatitudeRef={}", lat_ref));
-        args.push(format!("-GPSLongitude={}", gps.longitude.abs()));
-        args.push(format!("-GPSLongitudeRef={}", lon_ref));
+            args.push(format!("-GPSLatitude={}", gps.latitude.abs()));
+            args.push(format!("-GPSLatitudeRef={}", lat_ref));
+            args.push(format!("-GPSLongitude={}", gps.longitude.abs()));
+            args.push(format!("-GPSLongitudeRef={}", lon_ref));
 
-        if let Some(alt) = gps.altitude {
-            let alt_ref = if alt >= 0.0 { "0" } else { "1" };
-            args.push(format!("-GPSAltitude={}", alt.abs()));
-            args.push(format!("-GPSAltitudeRef={}", alt_ref));
+            if let Some(alt) = gps.altitude {
+                let alt_ref = if alt >= 0.0 { "0" } else { "1" };
+                args.push(format!("-GPSAltitude={}", alt.abs()));
+                args.push(format!("-GPSAltitudeRef={}", alt_ref));
+            }
         }
     }
 
@@ -574,7 +587,7 @@ mod tests {
             gps: None,
         };
         let target = Path::new("photo.jpg");
-        let args = build_metadata_args(target, &meta);
+        let args = build_metadata_args(target, &meta, true, true);
 
         assert!(args.contains(&"-AllDates=2023:01:01 00:00:00".to_string()));
         assert!(!args.iter().any(|a| a.contains("QuickTime")));
@@ -589,7 +602,7 @@ mod tests {
             gps: None,
         };
         let target = Path::new("video.mp4");
-        let args = build_metadata_args(target, &meta);
+        let args = build_metadata_args(target, &meta, true, true);
 
         assert!(args.contains(&"-api".to_string()));
         assert!(args.contains(&"QuickTimeUTC=1".to_string()));
@@ -606,7 +619,7 @@ mod tests {
             gps: None,
         };
         let target = Path::new("photo.jpg");
-        let args = build_metadata_args(target, &meta);
+        let args = build_metadata_args(target, &meta, true, true);
 
         assert!(args.contains(&"-ImageDescription=Desc  -execute".to_string()));
         assert!(args.contains(&"-Title=Title -execute -malicious".to_string()));
@@ -614,6 +627,90 @@ mod tests {
             assert!(!arg.contains('\n'));
             assert!(!arg.contains('\r'));
         }
+    }
+
+    #[test]
+    fn test_gps_enabled_toggle() {
+        let meta = ParsedMetadata {
+            title: None,
+            description: None,
+            taken_timestamp: 1672531200,
+            gps: Some(GpsCoordinate {
+                latitude: 40.7128,
+                longitude: -74.0060,
+                altitude: Some(10.0),
+            }),
+        };
+        let target = Path::new("photo.jpg");
+
+        // When gps_enabled is true, GPS EXIF tags must be included
+        let args_enabled = build_metadata_args(target, &meta, true, true);
+        assert!(args_enabled.contains(&"-GPSLatitude=40.7128".to_string()));
+        assert!(args_enabled.contains(&"-GPSLatitudeRef=N".to_string()));
+        assert!(args_enabled.contains(&"-GPSLongitude=74.006".to_string()));
+        assert!(args_enabled.contains(&"-GPSLongitudeRef=W".to_string()));
+        assert!(args_enabled.contains(&"-GPSAltitude=10".to_string()));
+        assert!(args_enabled.contains(&"-GPSAltitudeRef=0".to_string()));
+
+        // When gps_enabled is false, GPS EXIF tags must be omitted
+        let args_disabled = build_metadata_args(target, &meta, false, true);
+        assert!(!args_disabled.iter().any(|a| a.starts_with("-GPSLatitude")));
+        assert!(!args_disabled.iter().any(|a| a.starts_with("-GPSLongitude")));
+        assert!(!args_disabled.iter().any(|a| a.starts_with("-GPSAltitude")));
+    }
+
+    #[test]
+    fn test_timezone_enabled_toggle() {
+        // New York: July 1, 2023 12:00:00 UTC -> EDT (-04:00) -> 08:00:00 local
+        let meta = ParsedMetadata {
+            title: None,
+            description: None,
+            taken_timestamp: 1688212800,
+            gps: Some(GpsCoordinate {
+                latitude: 40.7128,
+                longitude: -74.0060,
+                altitude: None,
+            }),
+        };
+        let target = Path::new("photo.jpg");
+
+        // When timezone_enabled is true, timestamp should be localized to EDT (-04:00)
+        let args_tz_enabled = build_metadata_args(target, &meta, true, true);
+        assert!(args_tz_enabled.contains(&"-AllDates=2023:07:01 08:00:00-04:00".to_string()));
+
+        // When timezone_enabled is false, timestamp should remain raw UTC (12:00:00)
+        let args_tz_disabled = build_metadata_args(target, &meta, true, false);
+        assert!(args_tz_disabled.contains(&"-AllDates=2023:07:01 12:00:00".to_string()));
+    }
+
+    #[test]
+    fn test_both_gps_and_timezone_disabled() {
+        let meta = ParsedMetadata {
+            title: Some("Family Vacation".to_string()),
+            description: Some("At the beach".to_string()),
+            taken_timestamp: 1688212800,
+            gps: Some(GpsCoordinate {
+                latitude: 40.7128,
+                longitude: -74.0060,
+                altitude: Some(15.0),
+            }),
+        };
+        let target = Path::new("photo.jpg");
+
+        let args = build_metadata_args(target, &meta, false, false);
+
+        // Timestamps use raw UTC
+        assert!(args.contains(&"-AllDates=2023:07:01 12:00:00".to_string()));
+
+        // GPS tags are completely omitted
+        assert!(!args.iter().any(|a| a.starts_with("-GPSLatitude")));
+        assert!(!args.iter().any(|a| a.starts_with("-GPSLongitude")));
+        assert!(!args.iter().any(|a| a.starts_with("-GPSAltitude")));
+
+        // Title and description are still preserved
+        assert!(args.contains(&"-Title=Family Vacation".to_string()));
+        assert!(args.contains(&"-XPTitle=Family Vacation".to_string()));
+        assert!(args.contains(&"-ImageDescription=At the beach".to_string()));
     }
 
     #[test]

@@ -852,8 +852,14 @@ impl<'a> Processor<'a> {
 
         let parsed = parse(json_content.as_bytes())?;
 
-        self.pool
-            .execute(|engine| engine.update_metadata(target_path, &parsed))?;
+        self.pool.execute(|engine| {
+            engine.update_metadata(
+                target_path,
+                &parsed,
+                self.config.processing.gps_enabled,
+                self.config.processing.timezone_enabled,
+            )
+        })?;
 
         Ok(Some(parsed))
     }
