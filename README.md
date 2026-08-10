@@ -103,8 +103,12 @@ cargo run --release -- --gui
 **Workflow:**
 1. **Select Input:** Choose your extracted Google Photos Takeout folder(s) or `.zip` archives.
 2. **Select Output:** Choose the destination folder for restored media files.
-3. **Configure Options:** Toggle options like Timezone resolution, GPS preservation, or Output Mode (`Copy` vs `In-Place`).
+3. **Configure Options:** Toggle options like Timezone resolution, GPS restoration (re-embeds coordinates from `.json` sidecars; does not remove pre-existing camera-embedded EXIF data), or Output Mode (`Copy` vs `In-Place`).
 4. **Start Restoration:** Click **Start Processing** and monitor real-time progress and logs.
+
+> [!NOTE]
+> **Metadata Restoration Scope**  
+> Google Photos Takeout Restorer is a metadata restoration tool designed to restore metadata separated by Google Takeout into `.json` sidecar files. The GPS restoration toggle controls whether location data from sidecars is re-embedded; it is not a privacy/EXIF scrubber and does not strip pre-existing GPS coordinates embedded by the camera at capture time.
 
 ### 2. Command Line Interface (CLI Mode)
 Run headlessly in server or automated batch environments:
