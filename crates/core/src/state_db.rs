@@ -352,14 +352,12 @@ impl StateDatabase {
     pub fn open(path: &Path) -> Result<Arc<Self>, AppError> {
         let mut conn = Connection::open(path)?;
 
-        // Apply Pragmas
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "cache_size", -64000)?;
         conn.pragma_update(None, "busy_timeout", 30000)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
 
-        // Initialize schema
         Self::apply_schema(&mut conn)?;
 
         let conn = Arc::new(Mutex::new(conn));

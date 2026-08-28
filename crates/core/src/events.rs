@@ -1,14 +1,4 @@
-//! # Telemetry & Event Architecture
-//!
-//! This module defines the `AppEvent` system that replaces direct progress polling.
-//!
-//! ## Event Bus Contract
-//! - **Delivery Guarantees:** At-most-once delivery. Events are broadcast to all currently connected subscribers.
-//! - **Ordering Guarantees:** Strict FIFO (First-In, First-Out) per publisher thread.
-//! - **Failure Behavior:** If a subscriber panics or drops its receiver, the bus automatically detects the disconnect and removes the subscriber on the next publish attempt.
-//! - **Queue Limits:** The bus uses a bounded `sync_channel` with a capacity of 10,000 events per subscriber to prevent Out-Of-Memory (OOM) conditions.
-//! - **Slow Subscriber Policy:** If a subscriber's queue fills up (i.e., it lags behind by 10,000 events), the bus will proactively disconnect and drop that slow subscriber to prevent backpressuring the Core Engine worker threads. The Core Engine must never be blocked by a slow UI.
-//! - **Thread-Safety:** The `EventPublisher` is `Send + Sync`. Internal state is protected by a `RwLock`, ensuring parallel processes (like Rayon workers) can publish concurrently without data races.
+//! Broadcast event bus for piping progress telemetry and state changes across worker threads.
 
 use crate::state_db::FileStatus;
 use std::sync::{mpsc, RwLock};

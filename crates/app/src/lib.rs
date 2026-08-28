@@ -1,8 +1,4 @@
-//! Google Photos Takeout Restorer - App Dispatcher Crate
-//! Bridges UI command dispatching with core pipeline orchestration.
-//!
-//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
-//! Open Source Software released under the MIT License.
+//! Bridges UI commands with core metadata restoration pipeline orchestration.
 
 use app_core::config::{Config, OutputMode};
 use app_core::events::{AppEvent, Broadcaster, EventPublisher};
@@ -18,20 +14,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-/// CoreDispatcher bridges UI Commands to Core Execution for both CLI and GUI.
+/// Dispatches UI commands to core pipeline execution across CLI and GUI.
 pub struct CoreDispatcher {
     pub cancel_token: Arc<AtomicBool>,
     pub pause_token: Arc<AtomicBool>,
     pub publisher: Arc<Broadcaster>,
 
-    // Mutable state for GUI inputs before starting
     pub input_dirs: Arc<Mutex<Vec<PathBuf>>>,
     pub output_dir: Arc<Mutex<Option<PathBuf>>>,
     pub db_path: Arc<Mutex<Option<PathBuf>>>,
     pub use_system_exiftool: Arc<Mutex<bool>>,
     pub concurrency_limit: Arc<Mutex<usize>>,
 
-    // Core Configuration
     pub config: Arc<Mutex<Config>>,
 }
 

@@ -73,7 +73,7 @@ impl<'a> Matcher<'a> {
         let folder = media.path.folder();
         let candidates = self.json_map.get(&folder)?;
 
-        // Tier 1: Exact Match (e.g. image.jpg -> image.jpg.json)
+        // Tier 1: Exact sidecar match (e.g. image.jpg -> image.jpg.json)
         let exact_target = format!("{}.json", media.filename);
         if let Some(&c) = candidates.get(&exact_target) {
             return Some(MatchCandidate {
@@ -83,7 +83,7 @@ impl<'a> Matcher<'a> {
             });
         }
 
-        // Tier 2: Stripped Extension Match (e.g. image.jpg -> image.json)
+        // Tier 2: Stripped extension match (e.g. image.jpg -> image.json)
         let stem = media
             .filename
             .strip_suffix(&media.extension)
@@ -97,7 +97,7 @@ impl<'a> Matcher<'a> {
             });
         }
 
-        // Tier 3: Apple Edited Match (e.g. image.jpg -> image-edited.jpg.json or image-edited.json)
+        // Tier 3: Apple Photos edited exports (e.g. image.jpg -> image-edited.json)
         let edited_variants = [
             format!("{}-edited{}.json", stem, media.extension),
             format!("{}-edited.json", stem),
@@ -114,7 +114,7 @@ impl<'a> Matcher<'a> {
             }
         }
 
-        // Tier 3.5: (N) Suffix Movement
+        // Tier 3.5: Takeout duplicate index shifting: photo(1).jpg -> photo.jpg(1).json
         if let Some(captures) = SUFFIX_REGEX.captures(stem) {
             let clean_base = captures.get(1).unwrap().as_str();
             let n = captures.get(2).unwrap().as_str();
@@ -144,7 +144,7 @@ impl<'a> Matcher<'a> {
             }
         }
 
-        // Tier 4: Live Photo Pairing
+        // Tier 4: Live Photo video pairing (pairing .mov/.mp4 with the photo's sidecar)
         let ext_lower = media.extension.to_lowercase();
         if ext_lower == ".mov" || ext_lower == ".mp4" {
             let possible_image_exts = [".heic", ".HEIC", ".jpg", ".JPG", ".jpeg", ".JPEG"];
@@ -160,7 +160,7 @@ impl<'a> Matcher<'a> {
             }
         }
 
-        // Tier 4.5: MP4 Truncation (video.mp4 -> video.mp.json)
+        // Tier 4.5: Takeout mp4 extension truncation: video.mp4 -> video.mp.json
         if ext_lower == ".mp4" {
             let mp_target = format!("{}.mp.json", stem);
             if let Some(&c) = candidates.get(&mp_target) {

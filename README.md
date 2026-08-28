@@ -18,11 +18,7 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 2. **Reset Timestamps:** File creation and modification dates are reset to the exact moment you downloaded the archive.
 3. **Truncated & Duplicate Filenames:** Google Takeout truncates long filenames (e.g. `IMG_20210503_120000(1).jpg` becomes `IMG_20210503_120000(.json`), causing standard metadata fixers to fail.
 
-**Google Photos Takeout Restorer** solves this completely by intelligently matching sidecar JSONs to media files (even across truncated names, unicode titles, and subfolders), re-embedding EXIF metadata via ExifTool, fixing misnamed file extensions ("auto-healing"), and setting filesystem creation/modification timestamps.
-
-> **Note: Independent Verification Status**
-> - **Verified by audit:** Timestamp setting (OS filesystem times), Auto-healing logic, CLI flags, `.zip` archive extraction (including zip-bomb protection).
-> - **Not independently verified:** While Unicode title matching and truncation handling are fully covered by the test suite, they have not been independently tested against real-world Google Takeout edge-cases beyond the included fixtures.
+**Google Photos Takeout Restorer** solves this by matching sidecar JSONs to media files (handling truncated filenames, duplicate indexing, and nested album directories), re-embedding EXIF metadata via ExifTool, correcting misnamed file extensions via magic-byte inspection, and restoring original filesystem timestamps.
 
 ---
 

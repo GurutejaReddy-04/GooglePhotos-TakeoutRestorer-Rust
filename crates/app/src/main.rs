@@ -1,8 +1,4 @@
-//! Google Photos Takeout Restorer - Main Binary Entry Point
-//! CLI and GUI launcher for Google Photos Takeout metadata restoration.
-//!
-//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
-//! Open Source Software released under the MIT License.
+//! Google Photos Takeout Restorer - CLI & GUI application entry point.
 
 use app_core::config::Config;
 use app_core::events::{AppEvent, Broadcaster, EventPublisher};
@@ -58,7 +54,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SnapshotPolicy::Debounced(std::time::Duration::from_millis(1000)),
     );
 
-    // Pre-load recent runs for Welcome page
     let config_dir =
         directories::ProjectDirs::from("", "TakeoutRestorerTeam", "GooglePhotosRestorer")
             .map(|dirs| dirs.config_dir().to_path_buf())
@@ -68,8 +63,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::load().unwrap_or_default();
     publisher.publish(AppEvent::ConfigChanged(config.clone()));
-
-    // Apply CLI overrides here if needed, omitted for brevity
 
     let cancel_token = Arc::new(AtomicBool::new(false));
     let pause_token = Arc::new(AtomicBool::new(false));
@@ -88,18 +81,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "gui")]
     if cli.gui || (cli.inputs.is_empty() && cli.output.is_none()) {
-        // Let Slint use the default hardware-accelerated backend (winit with OpenGL) to restore native OS drag-and-drop.
         let runner = GuiRunner::new(dispatcher, snapshot_rx, config.ui.theme.clone());
         let res = runner.run();
 
-        // Ensure all ExifTool zombie processes are forcefully killed on exit
+        // Kill spawned ExifTool instances before exit
         app_core::exiftool::cleanup_all_processes();
 
         res?;
         return Ok(());
     }
 
-    // CLI Mode
     if cli.inputs.is_empty() || cli.output.is_none() {
         eprintln!("Error: CLI mode requires input and output arguments. Or use --gui.");
         std::process::exit(1);
@@ -108,12 +99,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dispatcher_ctrlc = dispatcher.clone();
     ctrlc::set_handler(move || {
         let _ = dispatcher_ctrlc.dispatch(UiCommand::CancelProcessing);
-        // Ensure ExifTool child processes are killed on Ctrl+C
         app_core::exiftool::cleanup_all_processes();
     })
     .map_err(|e| app_core::error::AppError::Io(std::io::Error::other(e.to_string())))?;
 
-    // In CLI mode, just start processing
     dispatcher.dispatch(UiCommand::StartProcessing)?;
 
     println!("--- Google Photos Takeout Restorer ---");

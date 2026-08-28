@@ -2,13 +2,11 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-/// Detects the true media extension based on file signatures (magic bytes).
-/// Returns `None` if the signature is unknown or the file cannot be read.
+/// Inspects leading magic bytes to identify true container and image formats.
 pub fn detect_magic_bytes(path: &Path) -> Option<&'static str> {
     let mut file = File::open(path).ok()?;
     let mut buffer = [0u8; 12];
 
-    // Read up to 12 bytes
     let bytes_read = file.read(&mut buffer).ok()?;
     if bytes_read < 4 {
         return None;
@@ -16,37 +14,21 @@ pub fn detect_magic_bytes(path: &Path) -> Option<&'static str> {
 
     let slice = &buffer[..bytes_read];
 
-    // JPEG: FF D8 FF
     if slice.starts_with(&[0xFF, 0xD8, 0xFF]) {
         return Some(".jpg");
     }
-
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
     if slice.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
         return Some(".png");
     }
-
-    // GIF: GIF87a or GIF89a
     if slice.starts_with(b"GIF87a") || slice.starts_with(b"GIF89a") {
         return Some(".gif");
     }
-
-    // TIFF (Little Endian): II*
-    if slice.starts_with(&[0x49, 0x49, 0x2A, 0x00]) {
+    if slice.starts_with(&[0x49, 0x49, 0x2A, 0x00]) || slice.starts_with(&[0x4D, 0x4D, 0x00, 0x2A]) {
         return Some(".tiff");
     }
-
-    // TIFF (Big Endian): MM*
-    if slice.starts_with(&[0x4D, 0x4D, 0x00, 0x2A]) {
-        return Some(".tiff");
-    }
-
-    // WEBP: RIFF....WEBP
     if bytes_read >= 12 && &slice[0..4] == b"RIFF" && &slice[8..12] == b"WEBP" {
         return Some(".webp");
     }
-
-    // ISOBMFF based formats (MP4, MOV, HEIC) start with `....ftyp` (box size + 'ftyp')
     if bytes_read >= 12 && &slice[4..8] == b"ftyp" {
         let brand = &slice[8..12];
         match brand {
@@ -60,9 +42,7 @@ pub fn detect_magic_bytes(path: &Path) -> Option<&'static str> {
     None
 }
 
-/// Verifies the file against the expected extension.
-/// If there is a mismatch and the true extension is known, returns `Some(true_extension)`.
-/// Otherwise returns `None`.
+/// Returns a corrected file extension if the file's binary signature contradicts its filename extension.
 pub fn get_correction(path: &Path, expected_ext: &str) -> Option<&'static str> {
     let true_ext = detect_magic_bytes(path)?;
     let expected_lower = expected_ext.to_lowercase();
@@ -72,7 +52,6 @@ pub fn get_correction(path: &Path, expected_ext: &str) -> Option<&'static str> {
         format!(".{}", expected_lower)
     };
 
-    // Common synonym equivalence
     let is_jpeg_synonym = (true_ext == ".jpg")
         && (expected_ext_normalized == ".jpeg" || expected_ext_normalized == ".jpg");
     let is_tiff_synonym = (true_ext == ".tiff")
