@@ -41,7 +41,6 @@ pub fn validate_destination(dest: &Path, inputs: &[PathBuf]) -> DestinationValid
         message: String::new(),
     };
 
-    // 1. Check write permissions and create dir if needed
     if !dest.exists() {
         if let Err(e) = fs::create_dir_all(dest) {
             result.kind = DestinationValidationKind::Error;
@@ -60,7 +59,6 @@ pub fn validate_destination(dest: &Path, inputs: &[PathBuf]) -> DestinationValid
     }
     let _ = fs::remove_file(test_file);
 
-    // 2. Disk Space
     let disks = Disks::new_with_refreshed_list();
     let mut best_match = None;
     let mut best_len = 0;
@@ -79,7 +77,6 @@ pub fn validate_destination(dest: &Path, inputs: &[PathBuf]) -> DestinationValid
         result.total_bytes = disk.total_space();
     }
 
-    // 3. Overlap check
     let dest_resolved = fs::canonicalize(dest).unwrap_or_else(|_| dest.to_path_buf());
 
     for inp in inputs {

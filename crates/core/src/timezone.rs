@@ -6,36 +6,24 @@ use tzf_rs::DefaultFinder;
 // Initialize the timezone finder only once, as it loads geospatial data into memory.
 static FINDER: Lazy<DefaultFinder> = Lazy::new(DefaultFinder::new);
 
-/// Resolves the timezone from geographic coordinates and returns a fully formatted,
-/// ExifTool-compatible timestamp string (e.g., "2023:07:01 08:00:00-04:00").
-/// Automatically handles Daylight Saving Time (DST) transitions.
-///
-/// Returns `None` if the coordinates are invalid, missing, or map to an unknown region.
+/// Resolves geographic coordinates to a local timezone and formats an EXIF timestamp string.
+/// If this ever breaks, it is probably because of daylight savings rules changing... again.
 pub fn format_localized_time(lat: f64, lon: f64, timestamp: i64) -> Option<String> {
-    // 0.0, 0.0 is often the default missing GPS coordinate in Google Takeout.
-    // It maps to a point in the Atlantic Ocean with no timezone.
+    // Null Island (0,0) is Takeout's default for missing GPS; no sensible timezone exists there.
     if lat == 0.0 && lon == 0.0 {
         return None;
     }
 
-    // 1. Resolve Timezone ID from GPS (e.g., "America/New_York")
-    // Note: tzf-rs takes (longitude, latitude)
     let tz_name = FINDER.get_tz_name(lon, lat);
     if tz_name.is_empty() {
         return None;
     }
 
-    // 2. Parse Timezone ID
     let tz: Tz = tz_name.parse().ok()?;
-
-    // 3. Construct datetime to determine DST offset
     let dt_utc = Utc.timestamp_opt(timestamp, 0).single()?;
     let dt_local = dt_utc.with_timezone(&tz);
 
-    // 4. Format as "YYYY:MM:DD HH:MM:SS"
     let time_str = dt_local.format("%Y:%m:%d %H:%M:%S").to_string();
-
-    // 5. Append offset with colon "+HH:MM"
     let offset_str = dt_local.format("%z").to_string();
 
     if offset_str.len() == 5 {

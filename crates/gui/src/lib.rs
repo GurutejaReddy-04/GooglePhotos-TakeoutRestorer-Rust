@@ -1,8 +1,4 @@
-//! Google Photos Takeout Restorer - GUI Crate
 //! Slint-based graphical user interface for cross-platform desktop execution.
-//!
-//! Author: Guruteja Reddy Nallachi (<https://github.com/GurutejaReddy-04>)
-//! Open Source Software released under the MIT License.
 
 slint::include_modules!();
 
