@@ -23,8 +23,7 @@ pub fn detect_magic_bytes(path: &Path) -> Option<&'static str> {
     if slice.starts_with(b"GIF87a") || slice.starts_with(b"GIF89a") {
         return Some(".gif");
     }
-    if slice.starts_with(&[0x49, 0x49, 0x2A, 0x00])
-        || slice.starts_with(&[0x4D, 0x4D, 0x00, 0x2A])
+    if slice.starts_with(&[0x49, 0x49, 0x2A, 0x00]) || slice.starts_with(&[0x4D, 0x4D, 0x00, 0x2A])
     {
         return Some(".tiff");
     }

@@ -1210,7 +1210,9 @@ mod tests {
             &broadcaster,
             "run_test_1".to_string(),
         );
-        let res1 = proc_enabled.process_metadata(&media, &target_photo).unwrap();
+        let res1 = proc_enabled
+            .process_metadata(&media, &target_photo)
+            .unwrap();
         assert!(res1.is_some());
 
         let logged_1 = fs::read_to_string(&log_file).unwrap();
@@ -1239,7 +1241,9 @@ mod tests {
             &broadcaster,
             "run_test_2".to_string(),
         );
-        let res2 = proc_disabled.process_metadata(&media, &target_photo).unwrap();
+        let res2 = proc_disabled
+            .process_metadata(&media, &target_photo)
+            .unwrap();
         assert!(res2.is_some());
 
         let logged_2 = fs::read_to_string(&log_file).unwrap();
