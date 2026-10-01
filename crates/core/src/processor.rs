@@ -1130,6 +1130,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let log_file = dir.path().join("mock_args.log");
         let log_str = log_file.to_str().unwrap().replace('\\', "/");
+        fs::write(&log_file, "").unwrap();
 
         #[cfg(windows)]
         let mock_bin = dir.path().join("mock_pipeline.bat");
@@ -1140,7 +1141,7 @@ mod tests {
         fs::write(
             &mock_bin,
             format!(
-                "@echo off\n:loop\nset /p line=\nif not defined line goto loop\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\necho {{ready}}\ngoto loop)\nif \"%line:~0,8%\"==\"-execute\" (echo 1 image files updated\necho {{ready}}\ngoto loop)\necho %line% >> \"{}\"\ngoto loop\n",
+                "@echo off\n:loop\nset /p line=\nif not defined line goto loop\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\ngoto loop)\nif \"%line:~0,8%\"==\"-execute\" (echo 1 image files updated\necho {{ready}}\ngoto loop)\necho %line% >> \"{}\"\ngoto loop\n",
                 log_str
             ),
         )
@@ -1152,7 +1153,7 @@ mod tests {
             fs::write(
                 &mock_bin,
                 format!(
-                    "#!/bin/sh\nwhile read line; do\n  if [ \"$line\" = \"-ver\" ]; then echo \"13.59\"; echo \"{{ready}}\";\n  elif [ \"$line\" = \"-execute\" ]; then echo \"1 image files updated\"; echo \"{{ready}}\";\n  else echo \"$line\" >> \"{}\"; fi\ndone\n",
+                    "#!/bin/sh\nwhile IFS= read -r line; do\n  if [ \"$line\" = \"-ver\" ]; then echo \"13.59\";\n  elif [ \"$line\" = \"-execute\" ]; then echo \"1 image files updated\"; echo \"{{ready}}\";\n  else echo \"$line\" >> \"{}\"; fi\ndone\n",
                     log_str
                 ),
             )
