@@ -97,7 +97,7 @@ impl DiskSpaceChecker for SysinfoDiskChecker {
     }
 }
 
-/// The central processor that orchestrates the matching and metadata restoration phases.
+/// The central processor that manages the matching and metadata restoration phases.
 /// It coordinates the `StateDatabase`, `Matcher`, and `ExifToolPool` to process files
 /// concurrently while reporting progress and managing disk space.
 pub struct Processor<'a> {

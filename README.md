@@ -5,13 +5,13 @@
 [![CI Build](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
-[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#supported-platforms)
+[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
 
-> An ultra-fast, multi-threaded cross-platform Rust tool to seamlessly re-embed Google Photos Takeout metadata (EXIF, GPS, timestamps) back into original media files.
+> A multi-threaded, cross-platform Rust tool that re-embeds Google Photos Takeout metadata (EXIF, GPS, timestamps) back into the original media files.
 
 ---
 
-## 💡 The Problem
+## The Problem
 
 When you download your photo library from **Google Photos Takeout**, Google separates metadata from your actual photos and videos:
 1. **Separated Metadata:** Date taken, descriptions, titles, and GPS coordinates are stripped from media files and placed into separate `.json` sidecar files.
@@ -22,7 +22,7 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 
 ---
 
-## 🎨 User Interface
+## User Interface
 
 ![App Icon](assets/icon.png)
 
@@ -32,7 +32,7 @@ The app features both an intuitive, modern graphical interface (built with [Slin
 
 ---
 
-## 💻 Platform Compatibility & Support Matrix
+## Platform Compatibility
 
 We distinguish between automated CI test execution and pre-built release package availability:
 
@@ -52,7 +52,7 @@ We distinguish between automated CI test execution and pre-built release package
 
 ---
 
-## 🛠️ System Requirements & Dependencies
+## System Requirements
 
 1. **Rust Toolchain:** Rust 1.75 or later (for building from source).
 2. **ExifTool:** Required for writing metadata into image/video files.
@@ -66,7 +66,7 @@ We distinguish between automated CI test execution and pre-built release package
 
 ---
 
-## 🚀 Installation & Building
+## Installation
 
 ### Pre-Built Installers
 Download the latest pre-built installers for Windows, macOS, or Linux from the [Latest Release](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases/latest) page.
