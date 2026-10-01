@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Planned for v0.2.0
+
+### Planned Performance & Architecture
+- **Lock-Free File Destination Handling**: Eliminate static `FILE_MOVE_MUTEX` contention across worker threads.
+- **In-Memory Sidecar JSON Streaming**: Bypass `.staging/` disk roundtrip by streaming JSON bytes over channels.
+- **Independent SQLite Connection Pool**: Separate read queries from WAL transaction writer loop.
+
 ## [0.1.9] - 2026-08-10
 
 ### Fixed
