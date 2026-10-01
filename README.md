@@ -129,6 +129,19 @@ Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
+## 📜 Project Origins & Architectural Evolution
+
+This Rust implementation is the high-performance successor to the original Python desktop prototype:
+👉 **[GooglePhotos-TakeoutRestorer (Python)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer)**
+
+### Architectural Motivation for the Rewrite
+- **IPC Protocol:** Persistent ExifTool STDIN command batching reduces per-file process communication overhead.
+- **Concurrency:** Multi-threaded work distribution configured across CPU cores using Rayon without Python Global Interpreter Lock (GIL) constraints.
+- **Distribution:** Self-contained native binary with zero Python runtime dependencies or PyInstaller extraction delay.
+- **UI Architecture:** Modern native GPU-accelerated Slint interface replacing CustomTkinter.
+
+Both repositories are publicly maintained to document this technical evolution.
+
 ---
 
 ## 👤 Author & Credits
