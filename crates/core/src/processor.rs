@@ -1119,4 +1119,141 @@ mod tests {
         );
         assert!(run_2_dir.join("file2.tmp").exists());
     }
+
+    #[test]
+    fn test_processor_process_metadata_config_propagation() {
+        use crate::config::Config;
+        use crate::events::Broadcaster;
+        use crate::exiftool::ExifToolPool;
+        use crate::state_db::{FilePath, FileStatus, MediaFile, StateDatabase};
+
+        let dir = tempdir().unwrap();
+        let log_file = dir.path().join("mock_args.log");
+        let log_str = log_file.to_str().unwrap().replace('\\', "/");
+
+        #[cfg(windows)]
+        let mock_bin = dir.path().join("mock_pipeline.bat");
+        #[cfg(not(windows))]
+        let mock_bin = dir.path().join("mock_pipeline.sh");
+
+        #[cfg(windows)]
+        fs::write(
+            &mock_bin,
+            format!(
+                "@echo off\n:loop\nset /p line=\nif not defined line goto loop\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\necho {{ready}}\ngoto loop)\nif \"%line:~0,8%\"==\"-execute\" (echo 1 image files updated\necho {{ready}}\ngoto loop)\necho %line% >> \"{}\"\ngoto loop\n",
+                log_str
+            ),
+        )
+        .unwrap();
+
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::write(
+                &mock_bin,
+                format!(
+                    "#!/bin/sh\nwhile read line; do\n  if [ \"$line\" = \"-ver\" ]; then echo \"13.59\"; echo \"{{ready}}\";\n  elif [ \"$line\" = \"-execute\" ]; then echo \"1 image files updated\"; echo \"{{ready}}\";\n  else echo \"$line\" >> \"{}\"; fi\ndone\n",
+                    log_str
+                ),
+            )
+            .unwrap();
+            let mut perms = fs::metadata(&mock_bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&mock_bin, perms).unwrap();
+        }
+
+        let sidecar_content = r#"{
+            "title": "photo.jpg",
+            "photoTakenTime": { "timestamp": "1688212800" },
+            "geoData": { "latitude": 40.7128, "longitude": -74.0060, "altitude": 10.0 }
+        }"#;
+        let json_file = dir.path().join("photo.jpg.json");
+        fs::write(&json_file, sidecar_content).unwrap();
+
+        let target_photo = dir.path().join("photo.jpg");
+        fs::write(&target_photo, b"dummy content").unwrap();
+
+        let media = MediaFile {
+            id: 1,
+            path: FilePath::Real {
+                base_components: 0,
+                abs: target_photo.clone(),
+            },
+            filename: "photo.jpg".to_string(),
+            extension: "jpg".to_string(),
+            size: 13,
+            status: FileStatus::Matched,
+            json_path: Some(FilePath::Real {
+                base_components: 0,
+                abs: json_file.clone(),
+            }),
+            match_confidence: Some(100),
+            match_tier: Some(1),
+            error_message: None,
+            has_live_video: false,
+        };
+
+        let broadcaster = Broadcaster::new();
+        let db = StateDatabase::memory().unwrap();
+        let pool = ExifToolPool::new(mock_bin.clone(), 1).unwrap();
+
+        // 1. Verify Config Enabled Path (GPS + Timezone)
+        let mut config_enabled = Config::default();
+        config_enabled.processing.gps_enabled = true;
+        config_enabled.processing.timezone_enabled = true;
+
+        let proc_enabled = Processor::new(
+            &db,
+            &config_enabled,
+            &pool,
+            dir.path().to_path_buf(),
+            &broadcaster,
+            "run_test_1".to_string(),
+        );
+        let res1 = proc_enabled.process_metadata(&media, &target_photo).unwrap();
+        assert!(res1.is_some());
+
+        let logged_1 = fs::read_to_string(&log_file).unwrap();
+        assert!(
+            logged_1.contains("-GPSLatitude="),
+            "GPS EXIF tags must be generated when gps_enabled=true"
+        );
+        assert!(
+            logged_1.contains("-04:00"),
+            "Timezone offset must be localized when timezone_enabled=true"
+        );
+
+        // Clear logged arguments
+        fs::write(&log_file, "").unwrap();
+
+        // 2. Verify Config Disabled Path (GPS=false, Timezone=false)
+        let mut config_disabled = Config::default();
+        config_disabled.processing.gps_enabled = false;
+        config_disabled.processing.timezone_enabled = false;
+
+        let proc_disabled = Processor::new(
+            &db,
+            &config_disabled,
+            &pool,
+            dir.path().to_path_buf(),
+            &broadcaster,
+            "run_test_2".to_string(),
+        );
+        let res2 = proc_disabled.process_metadata(&media, &target_photo).unwrap();
+        assert!(res2.is_some());
+
+        let logged_2 = fs::read_to_string(&log_file).unwrap();
+        assert!(
+            !logged_2.contains("-GPSLatitude"),
+            "GPS EXIF tags must be omitted when gps_enabled=false"
+        );
+        assert!(
+            logged_2.contains("12:00:00"),
+            "Raw UTC timestamp must be retained when timezone_enabled=false"
+        );
+        assert!(
+            !logged_2.contains("-04:00"),
+            "Localized offset must not be present when timezone_enabled=false"
+        );
+    }
 }

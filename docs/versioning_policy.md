@@ -9,4 +9,4 @@ Given a version number MAJOR.MINOR.PATCH:
 
 ## Release Channels
 - **Release Candidates (RC):** `v1.0.0-rc.1`. Used to validate installers and run manual smoke tests prior to public release.
-- **Stable:** `v1.0.0`. The official, signed release.
+- **Stable:** `v1.0.0`. The official release with verifiable build provenance attestations.

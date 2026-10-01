@@ -4,7 +4,7 @@
 2. **Release Candidate:** Tag a commit as `vX.Y.Z-rc.1`.
 3. **CI Pipeline:** GitHub Actions will automatically:
    - Run formatting (`cargo fmt`), linting (`cargo clippy`), and tests (`cargo test`).
-   - Run security audits (`cargo audit`, `cargo deny`).
+   - Run security and license audits (`cargo-deny` checking RustSec advisories and crate licensing).
    - Compile optimized binaries (`cargo build --release`).
    - Package native bundles (`cargo packager`).
    - Generate CycloneDX SBOM.

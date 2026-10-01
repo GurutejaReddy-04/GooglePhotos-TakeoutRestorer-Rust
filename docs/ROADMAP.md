@@ -6,7 +6,7 @@ This document tracks verified architectural bottlenecks, platform-specific runti
 
 ## 1. High-Priority Architectural & Throughput Optimizations (v0.2.0 Milestone)
 
-The following items represent confirmed throughput governors identified during deep concurrency and I/O profiling. While the current release (v0.1.8) is functionally stable and free of deadlocks, these optimizations will unlock substantial throughput gains (2x–4x on fast NVMe/SSD setups).
+The following items represent confirmed throughput governors identified during deep concurrency and I/O profiling. While the current release (v0.1.9) is functionally stable and free of deadlocks, these optimizations will unlock substantial throughput gains (2x–4x on fast NVMe/SSD setups).
 
 ### 1.1 Remove Global `FILE_MOVE_MUTEX` Contention
 - **Location:** [`crates/core/src/processor.rs:21, 768-771, 796-799`](../crates/core/src/processor.rs)
