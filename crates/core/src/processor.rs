@@ -1141,7 +1141,16 @@ mod tests {
         fs::write(
             &mock_bin,
             format!(
-                "@echo off\n:loop\nset /p line=\nif not defined line goto loop\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\ngoto loop)\nif \"%line:~0,8%\"==\"-execute\" (echo 1 image files updated\necho {{ready}}\ngoto loop)\necho %line% >> \"{}\"\ngoto loop\n",
+                concat!(
+                    "@echo off\r\n",
+                    "powershell.exe -NoProfile -Command \"",
+                    "$log = '{}'; ",
+                    "while ($line = [Console]::In.ReadLine()) {{ ",
+                    "if ($line -eq '-ver') {{ Write-Output '13.59' }} ",
+                    "elseif ($line -eq '-execute') {{ Write-Output '1 image files updated'; Write-Output '{{ready}}' }} ",
+                    "else {{ [IO.File]::AppendAllText($log, $line + [Environment]::NewLine) }} ",
+                    "}}\"",
+                ),
                 log_str
             ),
         )
