@@ -1194,7 +1194,8 @@ mod tests {
         };
 
         let broadcaster = Broadcaster::new();
-        let db = StateDatabase::memory().unwrap();
+        let db_path = dir.path().join("test_pipeline.db");
+        let db = StateDatabase::open(&db_path).unwrap();
         let pool = ExifToolPool::new(mock_bin.clone(), 1).unwrap();
 
         // 1. Verify Config Enabled Path (GPS + Timezone)
