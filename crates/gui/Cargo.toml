@@ -2,7 +2,6 @@
 name = "gui"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 
@@ -10,10 +9,10 @@ license.workspace = true
 shared_ui = { path = "../shared_ui" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-slint = { version = "=1.2.2", features = ["renderer-winit-skia", "software-renderer-systemfonts"] }
+slint = { version = "1.2.0", features = ["renderer-winit-skia", "software-renderer-systemfonts"] }
 rfd = "0.12" # Native file picker
 directories.workspace = true
-arboard = { version = "3.6.1", default-features = false }
+arboard = "3.6.1"
 
 [build-dependencies]
-slint-build = "=1.2.2"
+slint-build = "1.2"

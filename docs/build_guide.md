@@ -5,7 +5,7 @@ The official releases are generated automatically via GitHub Actions upon taggin
 
 ## Manual Build from Source
 To manually compile and generate release artifacts on your host OS:
-1. Ensure `rustup` is installed. The repository's `rust-toolchain.toml` tracks `stable`, while CI builds against MSRV `1.88.0`.
+1. Ensure `rustup` is installed. The repository's `rust-toolchain.toml` tracks `stable`, while CI builds against MSRV `1.75.0`.
 2. Install the packager tool:
    ```bash
    cargo install cargo-packager --version 0.11.8 --locked

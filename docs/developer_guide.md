@@ -1,7 +1,7 @@
 # Developer Guide
 
 ## Prerequisites
-- Rust 1.88.0 or later (configured automatically via `rust-toolchain.toml`).
+- Rust 1.75.0 or later (configured automatically via `rust-toolchain.toml`).
 - On Windows, Visual Studio Build Tools with the **Desktop development with C++** workload (provides `link.exe`).
 - `cargo-packager` (for building OS installers).
 

@@ -4,7 +4,7 @@
 [![Release Workflow](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/release.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![CI Build](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Rust: 1.88+](https://img.shields.io/badge/Rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
 
 > A multi-threaded, cross-platform Rust tool that re-embeds Google Photos Takeout metadata (EXIF, GPS, timestamps) back into the original media files.
@@ -54,7 +54,7 @@ We distinguish between automated CI test execution and pre-built release package
 
 ## System Requirements
 
-1. **Rust Toolchain:** Rust 1.88 or later (for building from source).
+1. **Rust Toolchain:** Rust 1.75 or later (for building from source).
    - **Windows source builds:** Install Visual Studio Build Tools with the **Desktop development with C++** workload. The MSVC Rust target requires `link.exe`.
 2. **ExifTool:** Required for writing metadata into image/video files.
    - **Automatic (Recommended):** The application includes an embedded downloader that can automatically fetch and set up the correct binary for your OS.

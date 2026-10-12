@@ -6,7 +6,7 @@ Thank you for your interest in contributing! We welcome bug reports, feature req
 
 ## 🛠️ Development Environment Setup
 
-1. **Install Rust:** Ensure you have Rust 1.88+ installed via [rustup](https://rustup.rs):
+1. **Install Rust:** Ensure you have Rust 1.75+ installed via [rustup](https://rustup.rs):
    ```bash
    rustup update stable
    ```
