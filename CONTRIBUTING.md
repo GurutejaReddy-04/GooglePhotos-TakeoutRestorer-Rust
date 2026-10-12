@@ -6,10 +6,11 @@ Thank you for your interest in contributing! We welcome bug reports, feature req
 
 ## 🛠️ Development Environment Setup
 
-1. **Install Rust:** Ensure you have Rust 1.75+ installed via [rustup](https://rustup.rs):
+1. **Install Rust:** Ensure you have Rust 1.88+ installed via [rustup](https://rustup.rs):
    ```bash
    rustup update stable
    ```
+   On Windows, also install Visual Studio Build Tools with the **Desktop development with C++** workload; it supplies the `link.exe` linker required by the default Rust target.
 2. **Clone the Repository:**
    ```bash
    git clone https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust.git

@@ -460,7 +460,9 @@ pub fn run_core_pipeline(
     }
 
     let exiftool_manager = ExifToolManager::new();
-    let binary_path = if use_system_exiftool {
+    let binary_path = if let Some(path) = config.exiftool_path.clone() {
+        path
+    } else if use_system_exiftool {
         PathBuf::from("exiftool")
     } else {
         let publisher_dl = Arc::clone(&publisher);

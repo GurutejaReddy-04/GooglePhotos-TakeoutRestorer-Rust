@@ -5,15 +5,13 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
-
 jobs:
   build-release:
     name: Build & Package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: write
     strategy:
       matrix:
         include:
@@ -28,7 +26,7 @@ jobs:
             artifact_name: restorer-macos-x86_64
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
     - name: Install Linux build dependencies
       if: runner.os == 'Linux'
@@ -48,20 +46,20 @@ jobs:
         choco install exiftool
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
       with:
-        toolchain: 1.75.0
+        toolchain: 1.88.0
         targets: ${{ matrix.target }}
 
     - name: Install cargo-packager
-      run: cargo install cargo-packager --locked
+      run: cargo install cargo-packager --version 0.11.8 --locked
 
     - name: Build Release Binary
       run: cargo build --release --target ${{ matrix.target }}
 
     - name: Generate SBOM (CycloneDX)
       run: |
-        cargo install cargo-cyclonedx --locked
+        cargo install cargo-cyclonedx --version 0.5.9 --locked
         cargo cyclonedx -f json --all
 
     - name: Generate macOS ICNS
@@ -95,7 +93,7 @@ jobs:
         done
 
     - name: Upload Matrix Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: release-assets-${{ matrix.target }}
         path: staging/*
@@ -105,11 +103,16 @@ jobs:
     name: Publish Release & Attestations
     runs-on: ubuntu-latest
     needs: build-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      actions: read
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
     - name: Download All Release Artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         path: incoming
 
@@ -134,12 +137,12 @@ jobs:
         cat SHA256SUMS
 
     - name: Attest Build Provenance (Sigstore)
-      uses: actions/attest@v4
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
       with:
         subject-path: 'dist/*'
 
     - name: Publish GitHub Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
       with:
         files: |
           dist/*
