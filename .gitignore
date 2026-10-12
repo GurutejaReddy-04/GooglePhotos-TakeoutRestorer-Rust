@@ -21,6 +21,8 @@ slint-build/
 # ------------------------------------------
 dist/
 bundle/
+build-artifacts/
+/TakeoutRestorer.exe
 *.app/
 *.dmg
 *.msi

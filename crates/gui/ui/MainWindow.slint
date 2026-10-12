@@ -7,7 +7,6 @@ import { DangerButton } from "components/DangerButton.slint";
 import { Card } from "components/Card.slint";
 import { SectionHeader } from "components/SectionHeader.slint";
 import { MetricTile } from "components/MetricTile.slint";
-import { LogPanel } from "components/LogPanel.slint";
 import { SearchField } from "components/SearchField.slint";
 import { FilterChip } from "components/FilterChip.slint";
 import { SettingRow } from "components/SettingRow.slint";
@@ -37,6 +36,7 @@ export component MainWindow inherits Window {
     in-out property <bool> action_feedback_is_error: false;
     in-out property <bool> show_delete_confirmation: false;
     in-out property <bool> show_clear_all_confirmation: false;
+    in-out property <bool> show_inplace_confirmation: false;
     in-out property <string> pending_delete_run_id: "";
     in-out property <string> pending_delete_run_title: "";
     in property <bool> show_fatal_error: false;
@@ -117,6 +117,31 @@ export component MainWindow inherits Window {
                             vertical-alignment: center;
                         }
 
+                        // Version Badge
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                height: 18px;
+                                background: Theme.bg_subtle;
+                                border-radius: Theme.radius_sm;
+                                border-width: 1px;
+                                border-color: Theme.border_subtle;
+                                HorizontalLayout {
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    alignment: center;
+                                    Text {
+                                        text: "v0.1.9";
+                                        font-size: 10px;
+                                        color: Theme.text_secondary;
+                                        font-family: Theme.font_family;
+                                        font-weight: Theme.font_weight_medium;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
                         // Engine Status Pill (Compact & Pixel-Perfect Centered)
                         VerticalLayout {
                             alignment: center;
@@ -141,7 +166,7 @@ export component MainWindow inherits Window {
                                             height: 8px;
                                             border-radius: 4px;
                                             background: root.processing.is_processing ? Theme.accent_primary :
-                                                        (root.processing.is_finished ? Theme.status_success : Theme.status_success);
+                                                        (root.processing.is_finished ? Theme.status_success : Theme.text_disabled);
                                         }
                                     }
 
@@ -176,14 +201,14 @@ export component MainWindow inherits Window {
 
                             FilterChip {
                                 text: "Overview";
-                                selected: root.active_tab == 0 && !root.processing.is_processing && !root.processing.is_finished;
+                                selected: root.active_tab == 0;
                                 clicked => { root.active_tab = 0; }
                             }
 
                             FilterChip {
                                 text: "Live Monitor";
                                 enabled: root.processing.is_processing || root.processing.completed_files > 0;
-                                selected: (root.processing.is_processing || root.active_tab == 1) && (root.processing.is_processing || root.processing.completed_files > 0);
+                                selected: root.active_tab == 1;
                                 count: root.processing.is_processing ? root.processing.completed_files : -1;
                                 clicked => { root.active_tab = 1; }
                             }
@@ -191,7 +216,7 @@ export component MainWindow inherits Window {
                             FilterChip {
                                 text: "Results";
                                 enabled: root.processing.is_finished || root.processing.results.length > 0;
-                                selected: (root.processing.is_finished || root.active_tab == 2) && (root.processing.is_finished || root.processing.results.length > 0);
+                                selected: root.active_tab == 2;
                                 count: root.processing.results.length > 0 ? root.processing.results.length : -1;
                                 clicked => { root.active_tab = 2; }
                             }
@@ -206,7 +231,7 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             ThemeSwitcher {
-                                width: 170px;
+                                min-width: 170px;
                                 theme: root.settings.theme;
                                 change_theme(val) => { root.change_theme(val); }
                             }
@@ -300,7 +325,7 @@ export component MainWindow inherits Window {
                                         spacing: Theme.space_3;
 
                                         SectionHeader {
-                                            title: "❶ Takeout Sources";
+                                            title: "Takeout Sources";
                                             subtitle: "Add Takeout ZIP archives or extracted folders";
                                             badge: root.inputs.length > 0 ? root.inputs.length + " Added" : "";
                                         }
@@ -344,7 +369,7 @@ export component MainWindow inherits Window {
 
                                         // Source items list
                                         Rectangle {
-                                            height: root.inputs.length == 0 ? 24px : 96px;
+                                            height: root.inputs.length == 0 ? 24px : Math.min(180px, Math.max(70px, root.inputs.length * 35px));
 
                                             if (root.inputs.length == 0): HorizontalLayout {
                                                 padding-left: Theme.space_1;
@@ -409,17 +434,19 @@ export component MainWindow inherits Window {
 
                                         if (root.inputs.length > 0 && !root.processing.is_processing): HorizontalLayout {
                                             alignment: end;
-                                            TouchArea {
-                                                width: 60px;
-                                                mouse-cursor: pointer;
-                                                clicked => { root.clear_inputs(); }
+                                            Rectangle {
+                                                touch_clear := TouchArea {
+                                                    mouse-cursor: pointer;
+                                                    clicked => { root.clear_inputs(); }
+                                                }
                                                 Text {
                                                     text: "Clear all";
-                                                    color: Theme.status_error;
+                                                    color: touch_clear.has-hover ? Theme.status_error.brighter(0.2) : Theme.status_error;
                                                     font-size: Theme.text_xs;
                                                     font-weight: Theme.font_weight_medium;
                                                     font-family: Theme.font_family;
                                                     horizontal-alignment: right;
+                                                    vertical-alignment: center;
                                                 }
                                             }
                                         }
@@ -447,7 +474,7 @@ export component MainWindow inherits Window {
                                         spacing: Theme.space_3;
 
                                         SectionHeader {
-                                            title: "❸ Output Destination";
+                                            title: "Output Destination";
                                             subtitle: "Where restored photos & metadata will be saved";
                                         }
 
@@ -524,7 +551,7 @@ export component MainWindow inherits Window {
                                         spacing: Theme.space_2;
 
                                         SectionHeader {
-                                            title: root.settings.output_mode == "copy" ? "❹ Options & Behavior" : "❸ Options & Behavior";
+                                            title: "Options & Behavior";
                                             subtitle: "Configure EXIF, Timezone and Performance";
                                         }
 
@@ -582,8 +609,12 @@ export component MainWindow inherits Window {
                                 icon: "⚡";
                                 enabled: root.can_start;
                                 clicked => {
-                                    root.active_tab = 1;
-                                    root.start_processing();
+                                    if (root.settings.output_mode == "in-place") {
+                                        root.show_inplace_confirmation = true;
+                                    } else {
+                                        root.active_tab = 1;
+                                        root.start_processing();
+                                    }
                                 }
                             }
 
@@ -605,7 +636,7 @@ export component MainWindow inherits Window {
                     background: Theme.bg_app;
 
                     // VIEW MODE A: OVERVIEW & RECENT RESTORES
-                    if (!root.processing.is_processing && !root.processing.is_finished && root.active_tab == 0): VerticalLayout {
+                    if (root.active_tab == 0): VerticalLayout {
                         padding: Theme.space_6;
                         spacing: Theme.space_5;
 
@@ -641,7 +672,9 @@ export component MainWindow inherits Window {
                                         font-family: Theme.font_family;
                                     }
                                     Text {
-                                        text: "Add your Takeout ZIP archives or extracted folders on the left panel, choose an output directory, then click Start Restoration Engine. Your original files will never be overwritten.";
+                                        text: root.settings.output_mode == "in-place" ?
+                                              "Add your Takeout archives on the left panel, configure options, and start the engine. Media files will be modified in-place." :
+                                              "Add your Takeout ZIP archives or extracted folders on the left panel, choose an output directory, then click Start Restoration Engine. Your original files will never be overwritten.";
                                         font-size: Theme.text_sm;
                                         color: Theme.text_secondary;
                                         font-family: Theme.font_family;
@@ -690,24 +723,40 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 spacing: Theme.space_3;
 
-                                Text {
-                                    text: "📥";
-                                    font-size: 42px;
-                                    horizontal-alignment: center;
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 64px;
+                                        height: 64px;
+                                        border-radius: Theme.radius_full;
+                                        background: Theme.bg_subtle;
+                                        border-width: 1px;
+                                        border-color: Theme.border_subtle;
+
+                                        Text {
+                                            text: "📥";
+                                            font-size: 28px;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
                                 }
 
                                 Text {
-                                    text: "No recent or interrupted sessions found.";
+                                    text: "No recent or interrupted sessions found";
                                     color: Theme.text_primary;
                                     font-size: Theme.text_base;
                                     font-weight: Theme.font_weight_bold;
+                                    font-family: Theme.font_family;
                                     horizontal-alignment: center;
                                 }
                                 Text {
-                                    text: "When you run a restore, your progress is automatically saved so you can resume anytime.";
+                                    text: "When you run a restoration, session checkpoints are automatically saved here so you can pause or resume anytime.";
                                     color: Theme.text_secondary;
-                                    font-size: Theme.text_sm;
+                                    font-size: Theme.text_xs;
+                                    font-family: Theme.font_family;
                                     horizontal-alignment: center;
+                                    wrap: word-wrap;
                                 }
                             }
 
@@ -791,19 +840,25 @@ export component MainWindow inherits Window {
                     }
 
                     // VIEW MODE B: LIVE MONITOR (PROCESSING)
-                    if (root.processing.is_processing || root.active_tab == 1): VerticalLayout {
+                    if (root.active_tab == 1): VerticalLayout {
                         padding: Theme.space_6;
                         spacing: Theme.space_5;
 
-                        // Telemetry Metric Tiles Grid
-                        HorizontalLayout {
+                        // Telemetry Metric Tiles Grid (2x3 Grid)
+                        VerticalLayout {
                             spacing: Theme.space_3;
-                            MetricTile { horizontal-stretch: 1; label: "PROCESSED FILES"; value: root.processing.completed_files + " / " + root.processing.total_files; }
-                            MetricTile { horizontal-stretch: 1; label: "SPEED"; value: root.processing.speed_text; }
-                            MetricTile { horizontal-stretch: 1; label: "ELAPSED"; value: root.processing.elapsed_text; }
-                            MetricTile { horizontal-stretch: 1; label: "REMAINING ETA"; value: root.processing.eta_text; }
-                            MetricTile { horizontal-stretch: 1; label: "RESTORED"; value: root.processing.ok_count + ""; status: "success"; }
-                            MetricTile { horizontal-stretch: 1; label: "ERRORS"; value: root.processing.error_count + ""; status: root.processing.error_count > 0 ? "error" : "normal"; }
+                            HorizontalLayout {
+                                spacing: Theme.space_3;
+                                MetricTile { horizontal-stretch: 1; label: "PROCESSED FILES"; value: root.processing.completed_files + " / " + root.processing.total_files; }
+                                MetricTile { horizontal-stretch: 1; label: "RESTORED"; value: root.processing.ok_count + ""; status: "success"; }
+                                MetricTile { horizontal-stretch: 1; label: "ERRORS"; value: root.processing.error_count + ""; status: root.processing.error_count > 0 ? "error" : "normal"; }
+                            }
+                            HorizontalLayout {
+                                spacing: Theme.space_3;
+                                MetricTile { horizontal-stretch: 1; label: "SPEED"; value: root.processing.speed_text; }
+                                MetricTile { horizontal-stretch: 1; label: "ELAPSED"; value: root.processing.elapsed_text; }
+                                MetricTile { horizontal-stretch: 1; label: "REMAINING ETA"; value: root.processing.eta_text; }
+                            }
                         }
 
                         // Hero Progress Card
@@ -855,7 +910,7 @@ export component MainWindow inherits Window {
                     }
 
                     // VIEW MODE C: RESTORATION RESULTS INSPECTOR
-                    if (root.processing.is_finished || root.active_tab == 2): VerticalLayout {
+                    if (root.active_tab == 2): VerticalLayout {
                         padding: Theme.space_6;
                         spacing: Theme.space_4;
 
@@ -890,7 +945,7 @@ export component MainWindow inherits Window {
                                     HorizontalLayout {
                                         spacing: Theme.space_2;
                                         PrimaryButton {
-                                            text: "Open Output Folder";
+                                            text: root.settings.output_mode == "in-place" ? "Open Restored Folder" : "Open Output Folder";
                                             icon: "📂";
                                             clicked => { root.open_output_folder(); }
                                         }
@@ -961,6 +1016,15 @@ export component MainWindow inherits Window {
                                         root.update_results_filter(root.search_text, root.status_filter);
                                     }
                                 }
+                                FilterChip {
+                                    text: "Skipped";
+                                    selected: root.status_filter == "Skipped";
+                                    count: root.processing.skipped_count;
+                                    clicked => {
+                                        root.status_filter = "Skipped";
+                                        root.update_results_filter(root.search_text, root.status_filter);
+                                    }
+                                }
                             }
                         }
 
@@ -981,8 +1045,8 @@ export component MainWindow inherits Window {
                                         padding-left: Theme.space_4;
                                         padding-right: Theme.space_4;
                                         spacing: Theme.space_3;
-                                        Text { text: "STATUS"; width: 110px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
-                                        Text { text: "FILENAME & MEDIA"; width: 280px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                        Text { text: "STATUS"; width: 95px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
+                                        Text { text: "FILENAME & MEDIA"; width: 320px; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
                                         Text { text: "DESTINATION & DETAILS"; horizontal-stretch: 1; color: Theme.text_secondary; font-size: Theme.text_xs; font-weight: Theme.font_weight_bold; vertical-alignment: center; }
                                     }
                                 }
@@ -1020,15 +1084,18 @@ export component MainWindow inherits Window {
 
                                             // Status Dot & Text
                                             HorizontalLayout {
-                                                width: 110px;
+                                                width: 95px;
                                                 spacing: Theme.space_2;
-                                                Rectangle {
-                                                    width: 8px;
-                                                    height: 8px;
-                                                    border-radius: Theme.radius_full;
-                                                    background: res.status == "Error" ? Theme.status_error :
-                                                                (res.status == "Unmatched" ? Theme.status_warning : Theme.status_success);
-                                                    y: 22px;
+                                                VerticalLayout {
+                                                    alignment: center;
+                                                    Rectangle {
+                                                        width: 8px;
+                                                        height: 8px;
+                                                        border-radius: Theme.radius_full;
+                                                        background: res.status == "Error" ? Theme.status_error :
+                                                                    (res.status == "Unmatched" ? Theme.status_warning :
+                                                                    (res.status == "Skipped" ? Theme.text_disabled : Theme.status_success));
+                                                    }
                                                 }
                                                 Text {
                                                     text: res.status;
@@ -1041,7 +1108,7 @@ export component MainWindow inherits Window {
 
                                             // Filename & Media type
                                             VerticalLayout {
-                                                width: 280px;
+                                                width: 320px;
                                                 alignment: center;
                                                 Text { text: res.filename; color: Theme.text_primary; font-size: Theme.text_xs; font-weight: Theme.font_weight_semibold; overflow: elide; }
                                                 Text { text: res.media_type; color: Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
@@ -1101,8 +1168,28 @@ export component MainWindow inherits Window {
         }
     }
 
+    if (root.show_inplace_confirmation): UtilityDialog {
+        title: "Modify Takeout files in-place?";
+        message: "In-place mode directly alters your original files inside the Takeout folder instead of copying them to a separate destination. This operation cannot be undone. Are you sure you want to proceed?";
+        accept_text: "Proceed In-Place";
+        reject_text: "Cancel";
+        is_warning: true;
+        accepted => {
+            root.show_inplace_confirmation = false;
+            root.active_tab = 1;
+            root.start_processing();
+        }
+        rejected => {
+            root.show_inplace_confirmation = false;
+        }
+    }
+
     if (root.show_fatal_error): ErrorDialog {
         error_message: root.fatal_error_message;
         exit_clicked => { root.shutdown_requested(); }
+        return_clicked => {
+            root.active_tab = 0;
+            root.export_again();
+        }
     }
 }

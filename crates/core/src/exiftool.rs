@@ -19,23 +19,28 @@ const TIMEOUT_SECS: u64 = 30;
 static SPAWNED_PIDS: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
 
 pub fn cleanup_all_processes() {
+    let pids = match SPAWNED_PIDS.lock() {
+        Ok(guard) => guard.clone(),
+        Err(_) => return,
+    };
+
+    if pids.is_empty() {
+        return;
+    }
+
     #[cfg(windows)]
-    {
-        let pids = match SPAWNED_PIDS.lock() {
-            Ok(guard) => guard.clone(),
-            Err(_) => return,
-        };
+    for pid in pids {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
 
-        if pids.is_empty() {
-            return;
-        }
-
-        for pid in pids {
-            let _ = std::process::Command::new("taskkill")
-                .args(["/F", "/T", "/PID", &pid.to_string()])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output();
-        }
+    #[cfg(not(windows))]
+    for pid in pids {
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output();
     }
 }
 

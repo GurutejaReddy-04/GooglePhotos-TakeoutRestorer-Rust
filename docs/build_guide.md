@@ -8,7 +8,7 @@ To manually compile and generate release artifacts on your host OS:
 1. Ensure `rustup` is installed. The repository's `rust-toolchain.toml` tracks `stable`, while CI builds against MSRV `1.75.0`.
 2. Install the packager tool:
    ```bash
-   cargo install cargo-packager --locked
+   cargo install cargo-packager --version 0.11.8 --locked
    ```
 3. Build the release binary:
    ```bash

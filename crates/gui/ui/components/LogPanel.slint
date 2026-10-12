@@ -1,3 +1,4 @@
+import { ListView } from "std-widgets.slint";
 import { Theme } from "Theme.slint";
 
 export component LogPanel inherits Rectangle {
@@ -104,36 +105,31 @@ export component LogPanel inherits Rectangle {
                 }
             }
 
-            if (root.logs.length > 0): Flickable {
-                viewport-height: root.logs.length * 20px + Theme.space_2 * 2;
+            if (root.logs.length > 0): ListView {
+                for log[idx] in root.logs: HorizontalLayout {
+                    height: 20px;
+                    padding-left: Theme.space_2;
+                    padding-right: Theme.space_2;
+                    spacing: Theme.space_2;
 
-                VerticalLayout {
-                    padding: Theme.space_2;
-                    spacing: 0px;
+                    Text {
+                        width: 32px;
+                        text: (idx + 1) + "";
+                        color: Theme.text_disabled;
+                        font-family: "monospace";
+                        font-size: 11px;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
 
-                    for log[idx] in root.logs: HorizontalLayout {
-                        height: 20px;
-                        spacing: Theme.space_2;
-
-                        Text {
-                            width: 32px;
-                            text: (idx + 1) + "";
-                            color: Theme.text_disabled;
-                            font-family: "monospace";
-                            font-size: 11px;
-                            horizontal-alignment: right;
-                            vertical-alignment: center;
-                        }
-
-                        Text {
-                            horizontal-stretch: 1;
-                            text: log;
-                            color: Theme.text_secondary;
-                            font-family: "monospace";
-                            font-size: 11px;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: log;
+                        color: Theme.text_secondary;
+                        font-family: "monospace";
+                        font-size: 11px;
+                        vertical-alignment: center;
+                        overflow: elide;
                     }
                 }
             }

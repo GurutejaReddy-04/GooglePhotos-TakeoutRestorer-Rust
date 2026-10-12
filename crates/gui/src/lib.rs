@@ -21,6 +21,22 @@ pub struct GuiRunner {
     startup_theme: String,
 }
 
+fn show_timed_feedback(ui: &MainWindow, message: &str, is_error: bool) {
+    ui.set_action_feedback_is_error(is_error);
+    ui.set_action_feedback(message.into());
+    if !is_error {
+        let handle = ui.as_weak();
+        let expected_msg = message.to_string();
+        slint::Timer::single_shot(std::time::Duration::from_secs(4), move || {
+            if let Some(ui) = handle.upgrade() {
+                if ui.get_action_feedback() == expected_msg.as_str() {
+                    ui.set_action_feedback("".into());
+                }
+            }
+        });
+    }
+}
+
 impl GuiRunner {
     pub fn new(
         dispatcher: Arc<dyn CommandDispatcher + Send + Sync>,
@@ -42,8 +58,8 @@ impl GuiRunner {
 
         let state = WindowState::load();
         ui.window().set_size(slint::LogicalSize::new(
-            state.width.max(800.0),
-            state.height.max(600.0),
+            state.width.max(980.0),
+            state.height.max(640.0),
         ));
         if state.x >= 0.0 && state.y >= 0.0 && state.x < 3000.0 && state.y < 2000.0 {
             ui.window()
@@ -104,9 +120,10 @@ impl GuiRunner {
                 match result {
                     Ok(()) => ui.global::<Theme>().set_preference(theme_val.into()),
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not update appearance preference: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not update appearance preference: {error}"),
+                            true,
                         );
                     }
                 }
@@ -267,14 +284,14 @@ impl GuiRunner {
             if let Some(ui) = ui_handle_resume.upgrade() {
                 match dispatcher_resume.dispatch(UiCommand::ResumeRun(id.to_string())) {
                     Ok(()) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback("Resuming saved session…".into());
+                        show_timed_feedback(&ui, "Resuming saved session…", false);
                         ui.set_active_tab(1);
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not resume saved session: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not resume saved session: {error}"),
+                            true,
                         );
                     }
                 }
@@ -287,13 +304,13 @@ impl GuiRunner {
             if let Some(ui) = ui_handle_delete.upgrade() {
                 match dispatcher_delete.dispatch(UiCommand::DeleteRun(id.to_string())) {
                     Ok(()) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback("Saved session deleted.".into());
+                        show_timed_feedback(&ui, "Saved session deleted.", false);
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not delete saved session: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not delete saved session: {error}"),
+                            true,
                         );
                     }
                 }
@@ -306,13 +323,13 @@ impl GuiRunner {
             if let Some(ui) = ui_handle_clear_all.upgrade() {
                 match dispatcher_clear_all.dispatch(UiCommand::ClearAllRuns) {
                     Ok(()) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback("All restore history cleared.".into());
+                        show_timed_feedback(&ui, "All restore history cleared.", false);
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not clear restore history: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not clear restore history: {error}"),
+                            true,
                         );
                     }
                 }
@@ -325,15 +342,17 @@ impl GuiRunner {
             if let Some(ui) = ui_handle_recover.upgrade() {
                 match dispatcher_recover.dispatch(UiCommand::RecoverRun(id.to_string())) {
                     Ok(()) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback(
-                            "Recovery data applied. Resume the session when you are ready.".into(),
+                        show_timed_feedback(
+                            &ui,
+                            "Recovery data applied. Resume the session when you are ready.",
+                            false,
                         );
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not recover saved session: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not recover saved session: {error}"),
+                            true,
                         );
                     }
                 }
@@ -400,12 +419,29 @@ impl GuiRunner {
         let ui_handle_open = ui.as_weak();
         ui.on_open_output_folder(move || {
             if let Some(ui) = ui_handle_open.upgrade() {
-                let dest = ui.get_settings().destination_path;
-                let dest_str = dest.to_string();
+                let mut dest_str = ui.get_settings().destination_path.to_string();
 
                 if dest_str.is_empty() {
-                    ui.set_action_feedback_is_error(true);
-                    ui.set_action_feedback("No output folder is available for this run.".into());
+                    // Fallback for In-Place mode: open the first input directory if present
+                    let inputs = ui.get_inputs();
+                    if inputs.row_count() > 0 {
+                        if let Some(first_input) = inputs.row_data(0) {
+                            let p = std::path::PathBuf::from(first_input.as_str());
+                            if p.is_file() {
+                                dest_str = p
+                                    .parent()
+                                    .unwrap_or(&p)
+                                    .to_string_lossy()
+                                    .to_string();
+                            } else {
+                                dest_str = p.to_string_lossy().to_string();
+                            }
+                        }
+                    }
+                }
+
+                if dest_str.is_empty() {
+                    show_timed_feedback(&ui, "No output folder is available for this run.", true);
                     return;
                 }
 
@@ -427,13 +463,13 @@ impl GuiRunner {
 
                 match open_result {
                     Ok(_) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback("Opened output folder.".into());
+                        show_timed_feedback(&ui, "Opened output folder.", false);
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not open output folder: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not open output folder: {error}"),
+                            true,
                         );
                     }
                 }
@@ -456,13 +492,13 @@ impl GuiRunner {
                     .and_then(|mut clipboard| clipboard.set_text(log_path_str))
                 {
                     Ok(()) => {
-                        ui.set_action_feedback_is_error(false);
-                        ui.set_action_feedback("Log path copied to the clipboard.".into());
+                        show_timed_feedback(&ui, "Log path copied to the clipboard.", false);
                     }
                     Err(error) => {
-                        ui.set_action_feedback_is_error(true);
-                        ui.set_action_feedback(
-                            format!("Could not copy the log path: {error}").into(),
+                        show_timed_feedback(
+                            &ui,
+                            &format!("Could not copy the log path: {error}"),
+                            true,
                         );
                     }
                 }

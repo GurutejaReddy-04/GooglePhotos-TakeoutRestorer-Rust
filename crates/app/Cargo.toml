@@ -36,7 +36,7 @@ product_name = "Google Photos Takeout Restorer"
 identifier = "com.takeoutrestorer.app"
 description = "Restores Google Photos Takeout metadata using ExifTool."
 copyright = "Copyright (c) 2026 Takeout Restorer Team"
-icons = ["../../assets/icon.png", "../../assets/icon.icns", "../../assets/icon.ico"]
+icons = ["../../assets/icon.png", "../../assets/icon.ico"]
 
 [[package.metadata.packager.binaries]]
 path = "TakeoutRestorer"

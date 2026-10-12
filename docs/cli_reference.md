@@ -3,7 +3,7 @@
 The application can be operated entirely from the terminal.
 
 ## Usage
-`restorer [OPTIONS] <INPUTS>...`
+`TakeoutRestorer [OPTIONS] <INPUTS>...`
 
 ## Arguments
 - `<INPUTS>`: One or more Takeout directories or `.zip` files.
@@ -15,4 +15,4 @@ The application can be operated entirely from the terminal.
 - `--gui`: Launches the graphical user interface.
 
 ## Example
-`restorer --output C:\RestoredPhotos C:\Takeout\Takeout.zip`
+`TakeoutRestorer --output C:\RestoredPhotos C:\Takeout\Takeout.zip`

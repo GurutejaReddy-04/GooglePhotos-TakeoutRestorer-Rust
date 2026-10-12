@@ -10,6 +10,7 @@ Thank you for your interest in contributing! We welcome bug reports, feature req
    ```bash
    rustup update stable
    ```
+   On Windows, also install Visual Studio Build Tools with the **Desktop development with C++** workload; it supplies the `link.exe` linker required by the default Rust target.
 2. **Clone the Repository:**
    ```bash
    git clone https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust.git

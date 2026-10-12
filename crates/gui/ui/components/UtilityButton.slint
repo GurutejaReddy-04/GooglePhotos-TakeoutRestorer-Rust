@@ -32,9 +32,7 @@ export component UtilityButton {
             bg.border-color: transparent;
         }
         danger when root.variant == "danger": {
-            bg.background: touch.pressed ? Theme.status_error : (touch.has-hover ? Theme.status_error : Theme.status_error);
-            // We adjust opacity/color on hover in a real app, for simplicity we just use error
-            bg.background: touch.has-hover ? Theme.status_error.brighter(0.2) : Theme.status_error;
+            bg.background: touch.pressed ? Theme.status_error.darker(0.2) : (touch.has-hover ? Theme.status_error.brighter(0.2) : Theme.status_error);
             txt.color: Theme.text_on_danger;
             icon-txt.color: Theme.text_on_danger;
             bg.border-color: transparent;

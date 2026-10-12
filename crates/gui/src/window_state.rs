@@ -14,8 +14,8 @@ pub struct WindowState {
 impl Default for WindowState {
     fn default() -> Self {
         Self {
-            width: 1000.0,
-            height: 700.0,
+            width: 1220.0,
+            height: 780.0,
             x: 100.0,
             y: 100.0,
             is_maximized: false,
@@ -42,8 +42,8 @@ impl WindowState {
         if path.exists() {
             if let Ok(data) = fs::read_to_string(&path) {
                 if let Ok(mut state) = serde_json::from_str::<Self>(&data) {
-                    state.width = state.width.max(600.0);
-                    state.height = state.height.max(450.0);
+                    state.width = state.width.max(980.0);
+                    state.height = state.height.max(640.0);
                     return state;
                 }
             }

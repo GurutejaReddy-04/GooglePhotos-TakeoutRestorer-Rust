@@ -1,0 +1,35 @@
+name: Build Windows Binary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Standalone Windows Binary
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        targets: x86_64-pc-windows-msvc
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Build Release Binary
+      run: cargo build --release --bin TakeoutRestorer --features gui
+
+    - name: Upload Standalone Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: TakeoutRestorer-windows-x64
+        path: target/release/TakeoutRestorer.exe
+        retention-days: 1

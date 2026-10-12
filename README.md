@@ -55,6 +55,7 @@ We distinguish between automated CI test execution and pre-built release package
 ## System Requirements
 
 1. **Rust Toolchain:** Rust 1.75 or later (for building from source).
+   - **Windows source builds:** Install Visual Studio Build Tools with the **Desktop development with C++** workload. The MSVC Rust target requires `link.exe`.
 2. **ExifTool:** Required for writing metadata into image/video files.
    - **Automatic (Recommended):** The application includes an embedded downloader that can automatically fetch and set up the correct binary for your OS.
    - **Manual System Installation:**

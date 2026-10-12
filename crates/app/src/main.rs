@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! Google Photos Takeout Restorer - CLI & GUI application entry point.
 
 use app_core::config::Config;
@@ -43,6 +44,21 @@ use app::CoreDispatcher;
 /// Entry point for the application. Initializes logging, parses CLI arguments,
 /// and delegates to either the `GuiRunner` or the headless `CoreDispatcher` depending on arguments.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        let is_cli = args.len() > 1 && !args.iter().any(|a| a == "--gui");
+        if is_cli {
+            unsafe {
+                #[link(name = "kernel32")]
+                extern "system" {
+                    fn AttachConsole(dw_process_id: u32) -> i32;
+                }
+                AttachConsole(0xFFFF_FFFF);
+            }
+        }
+    }
+
     init_logging();
     let cli = Cli::parse();
 
