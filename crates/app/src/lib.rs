@@ -459,6 +459,10 @@ pub fn run_core_pipeline(
         }
     }
 
+    let _os_governor = app_core::os_governor::ExecutionGovernorGuard::acquire(
+        config.processing.high_performance,
+    );
+
     let exiftool_manager = ExifToolManager::new();
     let binary_path = if let Some(path) = config.exiftool_path.clone() {
         path
@@ -478,7 +482,7 @@ pub fn run_core_pipeline(
 
     let pool_size = if config.processing.high_performance {
         std::thread::available_parallelism()
-            .map(|n| n.get())
+            .map(|n| n.get().clamp(8, 32))
             .unwrap_or(8)
     } else {
         let cores = std::thread::available_parallelism()
@@ -573,10 +577,11 @@ pub fn run_core_pipeline(
         run_id
     ));
     app_core::logger::log_restoration_event(&format!(
-        "Destination: {} | Mode: {:?} | Workers: {}",
+        "Destination: {} | Mode: {:?} | Workers: {} | High Performance: {}",
         output.display(),
         config.processing.output_mode,
-        pool_size
+        pool_size,
+        config.processing.high_performance
     ));
 
     publisher.publish(AppEvent::ProcessingPhaseStarted {

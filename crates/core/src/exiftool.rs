@@ -16,6 +16,12 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const TIMEOUT_SECS: u64 = 30;
 
+use crate::os_governor::JobObjectSupervisor;
+use once_cell::sync::Lazy;
+
+static GLOBAL_JOB_SUPERVISOR: Lazy<Option<JobObjectSupervisor>> =
+    Lazy::new(JobObjectSupervisor::new);
+
 static SPAWNED_PIDS: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
 
 pub fn cleanup_all_processes() {
@@ -142,6 +148,10 @@ impl ExifToolEngine {
         let mut child = cmd
             .spawn()
             .map_err(|e| AppError::ExifToolLaunchFailed(e.to_string()))?;
+
+        if let Some(ref supervisor) = *GLOBAL_JOB_SUPERVISOR {
+            supervisor.attach_child(&child);
+        }
 
         if let Ok(mut pids) = SPAWNED_PIDS.lock() {
             pids.push(child.id());

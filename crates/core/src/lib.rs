@@ -7,6 +7,7 @@ pub mod events;
 pub mod exiftool;
 pub mod logger;
 pub mod matcher;
+pub mod os_governor;
 pub mod parser;
 pub mod processor;
 pub mod scanner;

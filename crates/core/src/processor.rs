@@ -4,7 +4,7 @@ use crate::events::{AppEvent, EventPublisher};
 use crate::exiftool::ExifToolPool;
 use crate::matcher::Matcher;
 use crate::parser::{parse, ParsedMetadata};
-use crate::state_db::{FilePath, FileStatus, MediaFile, StateDatabase, StatusUpdate};
+use crate::state_db::{FileId, FilePath, FileStatus, MediaFile, StateDatabase, StatusUpdate};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
@@ -141,11 +141,17 @@ impl<'a> Processor<'a> {
     /// index, and iterates through pending media files in batches to find matches.
     pub fn run_matching_phase(&self) -> Result<(), AppError> {
         info!("Loading JSON entries for matching...");
+        crate::logger::log_restoration_event("Matching phase: indexing sidecar metadata...");
         let all_json = self.db.load_all_json()?;
+        crate::logger::log_restoration_event(&format!(
+            "Indexed {} sidecar JSON files for matching.",
+            all_json.len()
+        ));
         let matcher = Matcher::new(&all_json, self.config);
 
         let mut last_id = None;
         let batch_size = 5000;
+        let mut matched_total = 0;
 
         loop {
             let pending = self.db.load_pending_media_batch(last_id, batch_size)?;
@@ -156,9 +162,14 @@ impl<'a> Processor<'a> {
 
             debug!("Matching batch of {} files...", pending.len());
             let results = matcher.match_batch(&pending);
+            matched_total += results.iter().filter(|r| r.json_path.is_some()).count();
             self.db.apply_match_batch(&results)?;
         }
 
+        crate::logger::log_restoration_event(&format!(
+            "Matching phase complete. Successfully paired {} files with JSON metadata.",
+            matched_total
+        ));
         info!("Matching phase complete.");
         Ok(())
     }
