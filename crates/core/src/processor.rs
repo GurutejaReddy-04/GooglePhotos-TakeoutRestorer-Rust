@@ -665,6 +665,20 @@ impl<'a> Processor<'a> {
     /// Creates the output subdirectories if they don't exist.
     fn ensure_output_dirs(&self) -> Result<(), AppError> {
         if self.config.processing.output_mode == OutputMode::InPlace {
+            let log_dir = self.output_dir.join(DIR_LOGS);
+            if !log_dir.exists() {
+                let _ = fs::create_dir_all(&log_dir);
+            }
+            let log_file = log_dir.join("restoration.log");
+            if let Err(e) = crate::logger::set_active_log_file(&log_file) {
+                tracing::warn!("Could not initialize restoration.log: {}", e);
+            } else {
+                tracing::info!(
+                    "=== Google Photos Takeout Restorer (In-Place Mode) Run: {} ===",
+                    self.run_id
+                );
+                tracing::info!("Target folder: {}", self.output_dir.display());
+            }
             return Ok(());
         }
 
@@ -675,13 +689,19 @@ impl<'a> Processor<'a> {
             }
         }
 
-        let log_file = self.output_dir.join(DIR_LOGS).join("restoration.log");
-        if !log_file.exists() {
-            let _ = fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(&log_file);
+        let log_dir = self.output_dir.join(DIR_LOGS);
+        if !log_dir.exists() {
+            let _ = fs::create_dir_all(&log_dir);
+        }
+        let log_file = log_dir.join("restoration.log");
+        if let Err(e) = crate::logger::set_active_log_file(&log_file) {
+            tracing::warn!("Could not initialize restoration.log: {}", e);
+        } else {
+            tracing::info!(
+                "=== Google Photos Takeout Restorer Run: {} ===",
+                self.run_id
+            );
+            tracing::info!("Output destination: {}", self.output_dir.display());
         }
         Ok(())
     }
@@ -938,6 +958,7 @@ impl<'a> Processor<'a> {
 impl<'a> Drop for Processor<'a> {
     fn drop(&mut self) {
         self.cleanup_staging();
+        crate::logger::flush_active_log_file();
     }
 }
 

@@ -102,6 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Kill spawned ExifTool instances before exit
         app_core::exiftool::cleanup_all_processes();
+        app_core::logger::close_active_log_file();
 
         res?;
         return Ok(());
@@ -177,5 +178,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Ensure all ExifTool zombie processes are forcefully killed on CLI exit
     app_core::exiftool::cleanup_all_processes();
+    app_core::logger::close_active_log_file();
     Ok(())
 }

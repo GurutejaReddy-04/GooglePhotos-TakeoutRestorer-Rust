@@ -52,6 +52,7 @@ impl GuiRunner {
 
     pub fn run(&self) -> Result<(), slint::PlatformError> {
         let ui = MainWindow::new()?;
+        ui.set_app_version(format!("v{}", env!("CARGO_PKG_VERSION")).into());
         ui.global::<Theme>()
             .set_preference(normalize_theme_preference(&self.startup_theme).into());
         let ui_handle = ui.as_weak();
@@ -428,11 +429,7 @@ impl GuiRunner {
                         if let Some(first_input) = inputs.row_data(0) {
                             let p = std::path::PathBuf::from(first_input.as_str());
                             if p.is_file() {
-                                dest_str = p
-                                    .parent()
-                                    .unwrap_or(&p)
-                                    .to_string_lossy()
-                                    .to_string();
+                                dest_str = p.parent().unwrap_or(&p).to_string_lossy().to_string();
                             } else {
                                 dest_str = p.to_string_lossy().to_string();
                             }
@@ -479,15 +476,32 @@ impl GuiRunner {
         let ui_handle_copy = ui.as_weak();
         ui.on_copy_log_path(move || {
             if let Some(ui) = ui_handle_copy.upgrade() {
-                let log_dir = directories::ProjectDirs::from(
-                    "",
-                    "TakeoutRestorerTeam",
-                    "GooglePhotosRestorer",
-                )
-                .map(|dirs| dirs.data_dir().join("logs").join("app.log"))
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("app.log"));
+                let mut dest_str = ui.get_settings().destination_path.to_string();
 
-                let log_path_str = log_dir.to_string_lossy().to_string();
+                if dest_str.is_empty() {
+                    // Fallback for In-Place mode: check first input directory
+                    let inputs = ui.get_inputs();
+                    if inputs.row_count() > 0 {
+                        if let Some(first_input) = inputs.row_data(0) {
+                            let p = std::path::PathBuf::from(first_input.as_str());
+                            if p.is_file() {
+                                dest_str = p.parent().unwrap_or(&p).to_string_lossy().to_string();
+                            } else {
+                                dest_str = p.to_string_lossy().to_string();
+                            }
+                        }
+                    }
+                }
+
+                let log_file = if !dest_str.is_empty() {
+                    std::path::PathBuf::from(dest_str)
+                        .join("Logs")
+                        .join("restoration.log")
+                } else {
+                    std::path::PathBuf::from("Logs").join("restoration.log")
+                };
+
+                let log_path_str = log_file.to_string_lossy().to_string();
                 match arboard::Clipboard::new()
                     .and_then(|mut clipboard| clipboard.set_text(log_path_str))
                 {

@@ -41,6 +41,7 @@ export component MainWindow inherits Window {
     in-out property <string> pending_delete_run_title: "";
     in property <bool> show_fatal_error: false;
     in property <string> fatal_error_message: "";
+    in property <string> app_version: "v0.1.9";
     
     // Data model snapshots
     in property <[PastRun]> past_runs: [];
@@ -131,7 +132,7 @@ export component MainWindow inherits Window {
                                     padding-right: 6px;
                                     alignment: center;
                                     Text {
-                                        text: "v0.1.9";
+                                        text: root.app_version;
                                         font-size: 10px;
                                         color: Theme.text_secondary;
                                         font-family: Theme.font_family;

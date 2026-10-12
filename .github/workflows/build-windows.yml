@@ -24,6 +24,9 @@ jobs:
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
 
+    - name: Run Tests
+      run: cargo test --workspace --features gui
+
     - name: Build Release Binary
       run: cargo build --release --bin TakeoutRestorer --features gui
 
