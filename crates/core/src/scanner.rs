@@ -72,7 +72,8 @@ pub fn scan_inputs(
             == Some("zip")
         {
             let file = fs::File::open(input).map_err(AppError::Io)?;
-            let mut archive = zip::ZipArchive::new(file)?;
+            let buffered = std::io::BufReader::with_capacity(256 * 1024, file);
+            let mut archive = zip::ZipArchive::new(buffered)?;
 
             for i in 0..archive.len() {
                 if cancel.load(Ordering::Relaxed) {

@@ -83,6 +83,7 @@ pub fn parse_exiftool_output(output: &str) -> ExifToolResult {
 pub struct ExifToolEngine {
     binary_path: PathBuf,
     process: Mutex<Option<ProcessState>>,
+    op_counter: std::sync::atomic::AtomicUsize,
 }
 
 struct ProcessState {
@@ -96,6 +97,7 @@ impl ExifToolEngine {
         Self {
             binary_path,
             process: Mutex::new(None),
+            op_counter: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
@@ -223,6 +225,14 @@ impl ExifToolEngine {
     }
 
     pub fn execute(&self, args: &[&str]) -> Result<String, AppError> {
+        let count = self.op_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count >= 2500 {
+            self.op_counter.store(0, std::sync::atomic::Ordering::Relaxed);
+            debug!("Recycling ExifTool engine process after 2,500 operations to bound memory");
+            let mut process_guard = self.process.lock().unwrap_or_else(|e| e.into_inner());
+            *process_guard = None; // Drop child process cleanly
+        }
+
         self.ensure_running()?;
 
         let mut process_guard = self.process.lock().unwrap_or_else(|e| e.into_inner());

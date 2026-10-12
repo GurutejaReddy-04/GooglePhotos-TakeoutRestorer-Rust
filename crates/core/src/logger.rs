@@ -1,15 +1,15 @@
 use once_cell::sync::Lazy;
 use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io::{self, LineWriter, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tracing_subscriber::{fmt, EnvFilter};
 
-static ACTIVE_LOG_FILE: Lazy<Arc<Mutex<Option<BufWriter<File>>>>> =
+static ACTIVE_LOG_FILE: Lazy<Arc<Mutex<Option<LineWriter<File>>>>> =
     Lazy::new(|| Arc::new(Mutex::new(None)));
 
 /// A dual-destination writer that streams tracing events simultaneously to standard output
-/// and to an active restoration log file (when configured).
+/// and to an active restoration log file with immediate per-line flushing.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DualWriter;
 
@@ -19,6 +19,7 @@ impl io::Write for DualWriter {
         if let Ok(mut guard) = ACTIVE_LOG_FILE.lock() {
             if let Some(ref mut writer) = *guard {
                 let _ = writer.write(buf);
+                let _ = writer.flush();
             }
         }
         Ok(buf.len())
@@ -57,9 +58,22 @@ pub fn set_active_log_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
         .truncate(true)
         .open(path)?;
     if let Ok(mut guard) = ACTIVE_LOG_FILE.lock() {
-        *guard = Some(BufWriter::new(file));
+        *guard = Some(LineWriter::new(file));
     }
     Ok(())
+}
+
+/// Writes a timestamped structured milestone or error directly to the active log file and stdout.
+pub fn log_restoration_event(message: &str) {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    let line = format!("[{}] {}\n", now, message);
+    let _ = io::stdout().write(line.as_bytes());
+    if let Ok(mut guard) = ACTIVE_LOG_FILE.lock() {
+        if let Some(ref mut writer) = *guard {
+            let _ = writer.write_all(line.as_bytes());
+            let _ = writer.flush();
+        }
+    }
 }
 
 /// Flushes pending bytes in the active restoration log file buffer to disk.

@@ -481,10 +481,10 @@ pub fn run_core_pipeline(
             .map(|n| n.get())
             .unwrap_or(8)
     } else {
-        let max_safe = std::thread::available_parallelism()
-            .map(|n| (n.get() / 2).max(2))
+        let cores = std::thread::available_parallelism()
+            .map(|n| n.get())
             .unwrap_or(4);
-        config.processing.max_workers.min(max_safe).max(1)
+        config.processing.max_workers.max((cores * 3 / 4).clamp(4, 16))
     };
     let pool = ExifToolPool::new(binary_path, pool_size)?;
 
@@ -566,21 +566,41 @@ pub fn run_core_pipeline(
         db.save_execution_contract(&config, &output)?;
     }
 
+    let log_file = output.join("Logs").join("restoration.log");
+    let _ = app_core::logger::set_active_log_file(&log_file);
+    app_core::logger::log_restoration_event(&format!(
+        "=== Google Photos Takeout Restorer Run: {} ===",
+        run_id
+    ));
+    app_core::logger::log_restoration_event(&format!(
+        "Destination: {} | Mode: {:?} | Workers: {}",
+        output.display(),
+        config.processing.output_mode,
+        pool_size
+    ));
+
     publisher.publish(AppEvent::ProcessingPhaseStarted {
         name: "Scanning".to_string(),
         total_files: None,
     });
 
     let stats = scan_inputs(&inputs, &db, &config, &cancel, publisher.as_ref())?;
+    app_core::logger::log_restoration_event(&format!(
+        "Scan complete: {} media files, {} JSON sidecars discovered.",
+        stats.media_count, stats.json_count
+    ));
 
     if cancel.load(Ordering::SeqCst) {
+        app_core::logger::log_restoration_event("Run cancelled during scanning.");
         return Ok(());
     }
 
     let processor = Processor::new(&db, &config, &pool, output, publisher.as_ref(), run_id);
     processor.run_matching_phase()?;
+    app_core::logger::log_restoration_event("Matching phase complete.");
 
     if cancel.load(Ordering::SeqCst) {
+        app_core::logger::log_restoration_event("Run cancelled during matching.");
         return Ok(());
     }
 
@@ -592,10 +612,28 @@ pub fn run_core_pipeline(
     processor.run_processing_phase(&cancel, &pause)?;
 
     let results = db.get_all_terminal_results().unwrap_or_default();
+    let completed_count = results
+        .iter()
+        .filter(|m| m.status == app_core::state_db::FileStatus::Completed)
+        .count();
+    let unmatched_count = results
+        .iter()
+        .filter(|m| m.status == app_core::state_db::FileStatus::Unmatched)
+        .count();
+    let error_count = results
+        .iter()
+        .filter(|m| m.status == app_core::state_db::FileStatus::Error)
+        .count();
+    app_core::logger::log_restoration_event(&format!(
+        "Run complete: {} completed, {} unmatched, {} errors.",
+        completed_count, unmatched_count, error_count
+    ));
+
     publisher.publish(AppEvent::RunCompleted { results });
 
     // Gracefully shut down ExifTool processes
     pool.shutdown();
+    app_core::logger::flush_active_log_file();
 
     Ok(())
 }

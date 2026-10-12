@@ -204,216 +204,138 @@ impl<'a> Processor<'a> {
         let extracted_bytes = std::sync::Arc::new(AtomicU64::new(0));
         let completed_extracted = std::sync::Arc::new(AtomicU64::new(0));
         let restoration_started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let grand_total = self.db.get_total_media_count().unwrap_or(0);
         let batch_size = 1000;
-        let mut last_id = None;
 
-        loop {
-            if cancel.load(Ordering::Relaxed) {
-                self.cleanup_staging();
-                self.publisher.publish(AppEvent::CancellationAcknowledged);
-                return Ok(());
-            }
-
-            let ready_files = self.load_ready_media_batch(last_id, batch_size)?;
-            if ready_files.is_empty() {
-                break;
-            }
-            last_id = ready_files.last().map(|m| m.id);
-
-            let mut archive_map: HashMap<PathBuf, Vec<&MediaFile>> = HashMap::new();
-            let mut real_files = Vec::new();
-
-            for media in &ready_files {
-                match &media.path {
-                    FilePath::Real { .. } => real_files.push(media),
-                    FilePath::Zip { archive, .. } => {
-                        archive_map.entry(archive.clone()).or_default().push(media)
-                    }
-                }
-            }
-
-            let grand_total = self
-                .db
-                .get_total_media_count()
-                .unwrap_or(ready_files.len() as u64);
+        std::thread::scope(|s| {
+            let (tx, rx) = std::sync::mpsc::sync_channel(256);
+            let pool_size = self.pool.total_size();
             let restoration_started = std::sync::Arc::clone(&restoration_started);
 
-            std::thread::scope(|s| {
-                let (tx, rx) = std::sync::mpsc::sync_channel(2000);
+            // Consumer thread pool: EXIF processing
+            s.spawn(move || {
+                rx.into_iter().par_bridge().for_each(
+                    |(media, original_target_path): (MediaFile, PathBuf)| {
+                        if cancel.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        while pause.load(Ordering::Relaxed) && !cancel.load(Ordering::Relaxed) {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
 
-                let pool_size = self.pool.total_size();
+                        if !restoration_started.swap(true, Ordering::Relaxed) {
+                            self.publisher.publish(AppEvent::ProcessingPhaseStarted {
+                                name: format!("Restoring Metadata ({} Workers)", pool_size),
+                                total_files: Some(grand_total),
+                            });
+                        }
 
-                // Consumer thread pool: EXIF processing
-                s.spawn(move || {
-                    rx.into_iter().par_bridge().for_each(
-                        |(media, original_target_path): (MediaFile, PathBuf)| {
-                            if cancel.load(Ordering::Relaxed) {
-                                return;
-                            }
-                            while pause.load(Ordering::Relaxed) && !cancel.load(Ordering::Relaxed) {
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                            }
+                        let mut target_path = original_target_path.clone();
 
-                            if !restoration_started.swap(true, Ordering::Relaxed) {
-                                self.publisher.publish(AppEvent::ProcessingPhaseStarted {
-                                    name: format!("Restoring Metadata ({} Workers)", pool_size),
-                                    total_files: Some(grand_total),
-                                });
-                            }
-
-                            let mut target_path = original_target_path.clone();
-
-                            // Auto-heal: detect and fix mismatched file extensions
-                            let is_non_standard = media.extension.is_empty()
-                                || media.extension == "."
-                                || !self
+                        // Auto-heal: detect and fix mismatched file extensions
+                        let is_non_standard = media.extension.is_empty()
+                            || media.extension == "."
+                            || !self
+                                .config
+                                .supported_image_extensions
+                                .contains(&media.extension)
+                                && !self
                                     .config
-                                    .supported_image_extensions
-                                    .contains(&media.extension)
-                                    && !self
-                                        .config
-                                        .supported_video_extensions
-                                        .contains(&media.extension);
+                                    .supported_video_extensions
+                                    .contains(&media.extension);
 
-                            let correction = if is_non_standard {
-                                crate::auto_heal::get_correction(&target_path, &media.extension)
-                            } else {
-                                None
-                            };
+                        let correction = if is_non_standard {
+                            crate::auto_heal::get_correction(&target_path, &media.extension)
+                        } else {
+                            None
+                        };
 
-                            if let Some(true_ext) = correction {
-                                let mut proposed_path = target_path.clone();
-                                proposed_path.set_extension(true_ext.trim_start_matches('.'));
+                        if let Some(true_ext) = correction {
+                            let mut proposed_path = target_path.clone();
+                            proposed_path.set_extension(true_ext.trim_start_matches('.'));
 
-                                let _lock =
-                                    FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-                                let new_path = resolve_collision(
-                                    proposed_path.parent().unwrap_or(Path::new("")),
-                                    &proposed_path,
+                            let _lock =
+                                FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+                            let new_path = resolve_collision(
+                                proposed_path.parent().unwrap_or(Path::new("")),
+                                &proposed_path,
+                            );
+
+                            if std::fs::rename(&target_path, &new_path).is_ok() {
+                                self.publisher.publish(AppEvent::Warning {
+                                    message: format!(
+                                        "Auto-Heal: Renamed {} to match true extension {}",
+                                        media.filename, true_ext
+                                    ),
+                                });
+                                target_path = new_path;
+                            }
+                            drop(_lock);
+                        }
+
+                        match self.process_metadata(&media, &target_path) {
+                            Ok(parsed_meta) => {
+                                // Set filesystem timestamps to the photo taken time
+                                if let Some(meta) = &parsed_meta {
+                                    self.set_file_timestamps(
+                                        &target_path,
+                                        meta.taken_timestamp,
+                                    );
+                                }
+
+                                // Move file to appropriate output subdirectory
+                                let final_path = self.move_to_output_subdir(
+                                    &target_path,
+                                    &media,
+                                    parsed_meta.is_some(),
                                 );
 
-                                if std::fs::rename(&target_path, &new_path).is_ok() {
-                                    self.publisher.publish(AppEvent::Warning {
-                                        message: format!(
-                                            "Auto-Heal: Renamed {} to match true extension {}",
-                                            media.filename, true_ext
-                                        ),
-                                    });
-                                    target_path = new_path;
-                                }
-                                drop(_lock);
-                            }
+                                let status_tag = if parsed_meta.is_some() { "RESTORED" } else { "UNMATCHED" };
+                                crate::logger::log_restoration_event(&format!(
+                                    "{}: {} -> {}",
+                                    status_tag,
+                                    media.filename,
+                                    final_path.display()
+                                ));
 
-                            match self.process_metadata(&media, &target_path) {
-                                Ok(parsed_meta) => {
-                                    // Set filesystem timestamps to the photo taken time
-                                    if let Some(meta) = &parsed_meta {
-                                        self.set_file_timestamps(
-                                            &target_path,
-                                            meta.taken_timestamp,
-                                        );
-                                    }
-
-                                    // Move file to appropriate output subdirectory
-                                    let final_path = self.move_to_output_subdir(
-                                        &target_path,
-                                        &media,
-                                        parsed_meta.is_some(),
-                                    );
-
-                                    let bytes_written = if media.size > 0 {
-                                        media.size as u64
-                                    } else {
-                                        std::fs::metadata(&final_path).map(|m| m.len()).unwrap_or(0)
-                                    };
-                                    if let Err(db_err) = self
-                                        .db
-                                        .enqueue_status_update(StatusUpdate::Completed(media.id))
-                                    {
-                                        self.publisher.publish(AppEvent::Error {
-                                            file_id: None,
-                                            fatal: true,
-                                            message: format!("Fatal persistence error: {}", db_err),
-                                        });
-                                        cancel.store(true, Ordering::Relaxed);
-                                    }
-                                    self.publisher.publish(AppEvent::FileProcessed {
-                                        file_id: media.id,
-                                        status: FileStatus::Completed,
-                                        bytes_written,
-                                    });
-                                }
-                                Err(e) => {
-                                    error!(
-                                        "Error processing metadata for file {}: {}",
-                                        media.filename, e
-                                    );
-
-                                    // Move to Errors subdirectory
-                                    let final_path =
-                                        self.move_to_error_subdir(&target_path, &media);
-
-                                    if let Err(db_err) = self.db.enqueue_status_update(
-                                        StatusUpdate::Error(media.id, e.to_string()),
-                                    ) {
-                                        self.publisher.publish(AppEvent::Error {
-                                            file_id: None,
-                                            fatal: true,
-                                            message: format!("Fatal persistence error: {}", db_err),
-                                        });
-                                        cancel.store(true, Ordering::Relaxed);
-                                    }
+                                let bytes_written = if media.size > 0 {
+                                    media.size as u64
+                                } else {
+                                    std::fs::metadata(&final_path).map(|m| m.len()).unwrap_or(0)
+                                };
+                                if let Err(db_err) = self
+                                    .db
+                                    .enqueue_status_update(StatusUpdate::Completed(media.id))
+                                {
                                     self.publisher.publish(AppEvent::Error {
-                                        file_id: Some(media.id),
-                                        fatal: false,
-                                        message: format!("{}: {}", final_path.display(), e),
+                                        file_id: None,
+                                        fatal: true,
+                                        message: format!("Fatal persistence error: {}", db_err),
                                     });
-                                    self.publisher.publish(AppEvent::FileProcessed {
-                                        file_id: media.id,
-                                        status: FileStatus::Error,
-                                        bytes_written: 0,
-                                    });
+                                    cancel.store(true, Ordering::Relaxed);
                                 }
+                                self.publisher.publish(AppEvent::FileProcessed {
+                                    file_id: media.id,
+                                    status: FileStatus::Completed,
+                                    bytes_written,
+                                });
                             }
+                            Err(e) => {
+                                error!(
+                                    "Error processing metadata for file {}: {}",
+                                    media.filename, e
+                                );
+                                crate::logger::log_restoration_event(&format!(
+                                    "ERROR: {}: {}",
+                                    media.filename, e
+                                ));
 
-                            // Per-file sweep
-                            if self.config.processing.output_mode != OutputMode::InPlace {
-                                let staging_path = self.resolve_staging_path(&media);
-                                if let Some(parent) = staging_path.parent() {
-                                    if parent.exists() {
-                                        let _ = fs::remove_dir_all(parent);
-                                    }
-                                }
-                            }
-                        },
-                    );
-                });
+                                // Move to Errors subdirectory
+                                let final_path =
+                                    self.move_to_error_subdir(&target_path, &media);
 
-                // Producer thread: Extraction
-                let extracted_bytes = std::sync::Arc::clone(&extracted_bytes);
-                for media in real_files {
-                    if cancel.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    let dest = self.resolve_staging_path(media);
-                    if let Ok(true) = self.db.try_mark_processing(media.id) {
-                        if self.config.processing.output_mode == OutputMode::InPlace {
-                            if let FilePath::Real { abs: p, .. } = &media.path {
-                                let _ = tx.send((media.clone(), p.clone()));
-                            }
-                        } else if let FilePath::Real { abs: p, .. } = &media.path {
-                            if let Some(parent) = dest.parent() {
-                                let _ = fs::create_dir_all(parent);
-                            }
-                            let mut file_name = dest.file_name().unwrap_or_default().to_os_string();
-                            file_name.push(".partial");
-                            let temp_dest = dest.with_file_name(file_name);
-                            let copy_result =
-                                fs::copy(p, &temp_dest).and_then(|_| fs::rename(&temp_dest, &dest));
-                            if let Err(e) = copy_result {
-                                let _ = fs::remove_file(&temp_dest);
                                 if let Err(db_err) = self.db.enqueue_status_update(
-                                    StatusUpdate::Error(media.id, format!("Copy failed: {}", e)),
+                                    StatusUpdate::Error(media.id, e.to_string()),
                                 ) {
                                     self.publisher.publish(AppEvent::Error {
                                         file_id: None,
@@ -422,14 +344,107 @@ impl<'a> Processor<'a> {
                                     });
                                     cancel.store(true, Ordering::Relaxed);
                                 }
-                            } else {
-                                let _ = tx.send((media.clone(), dest));
+                                self.publisher.publish(AppEvent::Error {
+                                    file_id: Some(media.id),
+                                    fatal: false,
+                                    message: format!("{}: {}", final_path.display(), e),
+                                });
+                                self.publisher.publish(AppEvent::FileProcessed {
+                                    file_id: media.id,
+                                    status: FileStatus::Error,
+                                    bytes_written: 0,
+                                });
                             }
+                        }
+
+                        // Per-file sweep
+                        if self.config.processing.output_mode != OutputMode::InPlace {
+                            let staging_path = self.resolve_staging_path(&media);
+                            if let Some(parent) = staging_path.parent() {
+                                if parent.exists() {
+                                    let _ = fs::remove_dir_all(parent);
+                                }
+                            }
+                        }
+                    },
+                );
+            });
+
+            // Producer loop: Stream batches into bounded channel
+            let mut last_id = None;
+            loop {
+                if cancel.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let ready_files = match self.load_ready_media_batch(last_id, batch_size) {
+                    Ok(files) => files,
+                    Err(e) => {
+                        error!("Failed to load ready media batch: {}", e);
+                        break;
+                    }
+                };
+
+                if ready_files.is_empty() {
+                    break;
+                }
+                last_id = ready_files.last().map(|m| m.id);
+
+                // Batch mark in database in 1 single transaction!
+                let ids: Vec<FileId> = ready_files.iter().map(|m| m.id).collect();
+                if let Err(e) = self.db.try_mark_batch_processing(&ids) {
+                    error!("Failed to mark batch processing: {}", e);
+                    break;
+                }
+
+                let mut archive_map: HashMap<PathBuf, Vec<&MediaFile>> = HashMap::new();
+                let mut real_files = Vec::new();
+
+                for media in &ready_files {
+                    match &media.path {
+                        FilePath::Real { .. } => real_files.push(media),
+                        FilePath::Zip { archive, .. } => {
+                            archive_map.entry(archive.clone()).or_default().push(media)
                         }
                     }
                 }
 
-                let completed_extracted = std::sync::Arc::clone(&completed_extracted);
+                for media in real_files {
+                    if cancel.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let dest = self.resolve_staging_path(media);
+                    if self.config.processing.output_mode == OutputMode::InPlace {
+                        if let FilePath::Real { abs: p, .. } = &media.path {
+                            let _ = tx.send((media.clone(), p.clone()));
+                        }
+                    } else if let FilePath::Real { abs: p, .. } = &media.path {
+                        if let Some(parent) = dest.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let mut file_name = dest.file_name().unwrap_or_default().to_os_string();
+                        file_name.push(".partial");
+                        let temp_dest = dest.with_file_name(file_name);
+                        let copy_result =
+                            fs::copy(p, &temp_dest).and_then(|_| fs::rename(&temp_dest, &dest));
+                        if let Err(e) = copy_result {
+                            let _ = fs::remove_file(&temp_dest);
+                            if let Err(db_err) = self.db.enqueue_status_update(
+                                StatusUpdate::Error(media.id, format!("Copy failed: {}", e)),
+                            ) {
+                                self.publisher.publish(AppEvent::Error {
+                                    file_id: None,
+                                    fatal: true,
+                                    message: format!("Fatal persistence error: {}", db_err),
+                                });
+                                cancel.store(true, Ordering::Relaxed);
+                            }
+                        } else {
+                            let _ = tx.send((media.clone(), dest));
+                        }
+                    }
+                }
+
                 for (archive_path, files) in archive_map {
                     if cancel.load(Ordering::Relaxed) {
                         break;
@@ -437,46 +452,39 @@ impl<'a> Processor<'a> {
 
                     let file_result = fs::File::open(&archive_path);
                     if let Ok(file) = file_result {
-                        if let Ok(mut zip) = zip::ZipArchive::new(file) {
-                            let name_to_index: std::collections::HashMap<String, usize> = (0..zip
-                                .len())
-                                .filter_map(|idx| {
-                                    zip.by_index(idx).ok().map(|f| (f.name().to_string(), idx))
-                                })
-                                .collect();
-
-                            // Pre-populate the zip index cache so consumer threads
-                            // don't redundantly rebuild it (thundering herd prevention).
-                            {
-                                let mut cache = self
+                        let buffered = std::io::BufReader::with_capacity(256 * 1024, file);
+                        if let Ok(mut zip) = zip::ZipArchive::new(buffered) {
+                            let name_to_index = {
+                                let cache = self
                                     .zip_json_index_cache
                                     .lock()
                                     .unwrap_or_else(|e| e.into_inner());
-                                cache.insert(archive_path.clone(), name_to_index.clone());
-                            }
+                                cache.get(&archive_path).cloned()
+                            };
+
+                            let name_to_index = match name_to_index {
+                                Some(m) => m,
+                                None => {
+                                    let m: HashMap<String, usize> = (0..zip.len())
+                                        .filter_map(|idx| {
+                                            zip.by_index(idx).ok().map(|f| (f.name().to_string(), idx))
+                                        })
+                                        .collect();
+                                    let mut cache = self
+                                        .zip_json_index_cache
+                                        .lock()
+                                        .unwrap_or_else(|e| e.into_inner());
+                                    cache.insert(archive_path.clone(), m.clone());
+                                    m
+                                }
+                            };
 
                             for media in files.iter() {
                                 if cancel.load(Ordering::Relaxed) {
-                                    continue;
+                                    break;
                                 }
 
                                 let dest = self.resolve_staging_path(media);
-                                let is_claimed =
-                                    self.db.try_mark_processing(media.id).unwrap_or(false);
-                                if !is_claimed {
-                                    let current_cnt =
-                                        completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
-                                    if current_cnt.is_multiple_of(25) || current_cnt == grand_total
-                                    {
-                                        self.publisher.publish(AppEvent::ProgressStats {
-                                            completed: current_cnt,
-                                            total: grand_total,
-                                            eta_seconds: None,
-                                            speed_bps: 0,
-                                        });
-                                    }
-                                    continue;
-                                }
 
                                 if let FilePath::Zip { internal, .. } = &media.path {
                                     let extract_res = (|| -> Result<u64, AppError> {
@@ -487,8 +495,7 @@ impl<'a> Processor<'a> {
                                                     internal
                                                 )))
                                             })?;
-                                        // Reuse the outer zip handle — avoids re-reading
-                                        // the central directory for each extraction.
+
                                         let mut zip_file = zip.by_index(idx)?;
 
                                         if let Some(p) = dest.parent() {
@@ -533,8 +540,6 @@ impl<'a> Processor<'a> {
                                         })?;
 
                                         // Sidecar JSON Staging Optimization:
-                                        // If media has a matched sidecar JSON in the same archive,
-                                        // extract it directly to dest.parent()/sidecar.json using our open zip handle.
                                         if let Some(FilePath::Zip {
                                             archive: json_archive,
                                             internal: json_internal,
@@ -637,8 +642,14 @@ impl<'a> Processor<'a> {
                         }
                     }
                 }
-                drop(tx);
-            });
+            }
+            drop(tx);
+        });
+
+        if cancel.load(Ordering::Relaxed) {
+            self.cleanup_staging();
+            self.publisher.publish(AppEvent::CancellationAcknowledged);
+            return Ok(());
         }
 
         self.cleanup_staging();
@@ -785,10 +796,8 @@ impl<'a> Processor<'a> {
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
         let _ = fs::create_dir_all(&dest_dir);
 
-        let dest_path = {
-            let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-            resolve_collision(&dest_dir, current_path)
-        };
+        let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let dest_path = resolve_collision(&dest_dir, current_path);
 
         match fs::rename(current_path, &dest_path) {
             Ok(_) => dest_path,
@@ -813,10 +822,8 @@ impl<'a> Processor<'a> {
             let _ = fs::create_dir_all(&dest_dir);
         }
 
-        let dest_path = {
-            let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-            resolve_collision(&dest_dir, current_path)
-        };
+        let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let dest_path = resolve_collision(&dest_dir, current_path);
 
         match fs::rename(current_path, &dest_path) {
             Ok(_) => dest_path,

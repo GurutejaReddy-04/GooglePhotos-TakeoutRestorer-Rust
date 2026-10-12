@@ -407,6 +407,7 @@ impl StateDatabase {
                 UNIQUE(path, filename)
             );
             CREATE INDEX IF NOT EXISTS idx_status ON media_files(status);
+            CREATE INDEX IF NOT EXISTS idx_media_status_id ON media_files(status, id);
             CREATE INDEX IF NOT EXISTS idx_filename ON media_files(filename);
 
             CREATE TABLE IF NOT EXISTS json_files (
@@ -883,6 +884,30 @@ impl StateDatabase {
             ],
         )?;
         Ok(updated == 1)
+    }
+
+    pub fn try_mark_batch_processing(&self, file_ids: &[FileId]) -> Result<(), AppError> {
+        if file_ids.is_empty() {
+            return Ok(());
+        }
+        let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let tx = conn.transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "UPDATE media_files SET status = ?1 WHERE id = ?2 AND status IN (?3, ?4, ?5)",
+            )?;
+            for &id in file_ids {
+                stmt.execute(params![
+                    FileStatus::Processing,
+                    id,
+                    FileStatus::Matched,
+                    FileStatus::MatchedLowConfidence,
+                    FileStatus::Unmatched
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn recover_interrupted_processing(&self) -> Result<usize, AppError> {
