@@ -1,4 +1,4 @@
-# Takeout Restorer
+# Google Photos Takeout Restorer (Rust) — Takeout Restorer
 
 [![Latest Release](https://img.shields.io/github/v/release/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases)
 [![Release Workflow](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/release.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
@@ -7,14 +7,16 @@
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
 
+Developed by **Guruteja Reddy N ([@GurutejaReddy-04](https://github.com/GurutejaReddy-04))**, **Takeout Restorer** is an ultra-fast, multi-threaded desktop utility and command-line tool written in Rust designed to fix Google Takeout photo and video archives.
+
 > A high-performance, cross-platform Rust utility that re-embeds Google Photos Takeout metadata (EXIF, GPS, timestamps) back into original media files.
 
 ---
 
-## The Problem
+## ⚡ Why Use this Rust Helper?
 
 When you download your photo library from **Google Photos Takeout**, Google separates metadata from your actual photos and videos:
-1. **Separated Metadata:** Date taken, descriptions, titles, and GPS coordinates are stripped from media files and placed into separate `.json` sidecar files.
+1. **Stripped Metadata:** Date taken, descriptions, titles, and GPS coordinates are stripped from media files and placed into separate `.json` sidecar files.
 2. **Reset Timestamps:** File creation and modification dates are reset to the exact moment you downloaded the archive.
 3. **Truncated & Duplicate Filenames:** Google Takeout truncates long filenames (e.g. `IMG_20210503_120000(1).jpg` becomes `IMG_20210503_120000(.json`), causing standard metadata fixers to fail.
 
@@ -24,9 +26,7 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 
 ## User Interface
 
-![App Icon](assets/icon.png)
-
-
+![Takeout Restorer GUI Preview](assets/gui_preview.jpg)
 
 The app features both an intuitive, modern graphical interface (built with [Slint](https://slint.dev)) and a powerful headless CLI for automated/server environments.
 
@@ -188,6 +188,6 @@ Google Photos™ and Google Takeout™ are registered trademarks of Google LLC.
 
 ## 👤 Author & Credits
 
-Created and maintained by **Guruteja Reddy Nallachi**:
+Created and maintained by **Guruteja Reddy N**:
 - **GitHub:** [@GurutejaReddy-04](https://github.com/GurutejaReddy-04)
 - **Email:** `159574479+GurutejaReddy-04@users.noreply.github.com`

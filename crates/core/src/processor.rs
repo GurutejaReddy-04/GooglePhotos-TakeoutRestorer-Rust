@@ -721,10 +721,7 @@ impl<'a> Processor<'a> {
         if let Err(e) = crate::logger::set_active_log_file(&log_file) {
             tracing::warn!("Could not initialize restoration.log: {}", e);
         } else {
-            tracing::info!(
-                "=== Takeout Restorer Run: {} ===",
-                self.run_id
-            );
+            tracing::info!("=== Takeout Restorer Run: {} ===", self.run_id);
             tracing::info!("Output destination: {}", self.output_dir.display());
         }
         Ok(())
