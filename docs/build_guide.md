@@ -30,7 +30,7 @@ Every published release includes a consolidated `SHA256SUMS` manifest containing
 
 - **Windows (PowerShell):**
   ```powershell
-  Get-FileHash -Algorithm SHA256 .\TakeoutRestorer_0.1.9_x64-setup.exe
+  Get-FileHash -Algorithm SHA256 .\TakeoutRestorer_0.2.0_x64-setup.exe
   ```
 - **Linux:**
   ```bash
@@ -38,13 +38,13 @@ Every published release includes a consolidated `SHA256SUMS` manifest containing
   ```
 - **macOS:**
   ```bash
-  shasum -a 256 TakeoutRestorer_0.1.9_x86_64.AppImage
+  shasum -a 256 TakeoutRestorer_0.2.0_x86_64.AppImage
   ```
 
 ### 2. Supply-Chain Provenance (GitHub Artifact Attestations)
 Official release assets have Sigstore-backed GitHub Artifact Attestations establishing their build provenance (`actions/attest@v4`). You can cryptographically verify that a downloaded binary was produced by this repository's automated CI workflow without tampering:
 ```bash
-gh attestation verify TakeoutRestorer_0.1.9_x64-setup.exe --repo GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust
+gh attestation verify TakeoutRestorer_0.2.0_x64-setup.exe --repo GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust
 ```
 
 ---

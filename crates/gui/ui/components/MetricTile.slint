@@ -6,7 +6,7 @@ export component MetricTile inherits Rectangle {
     in property <string> status: "normal"; // "normal", "success", "warning", "error"
     in property <string> subtext: "";
 
-    height: 70px;
+    height: 80px;
     background: Theme.bg_surface;
     border-radius: Theme.radius_md;
     border-width: 1px;
@@ -17,9 +17,9 @@ export component MetricTile inherits Rectangle {
     VerticalLayout {
         padding-left: Theme.space_3;
         padding-right: Theme.space_3;
-        padding-top: Theme.space_2;
-        padding-bottom: Theme.space_2;
-        spacing: 2px;
+        padding-top: Theme.space_3;
+        padding-bottom: Theme.space_3;
+        spacing: 3px;
         alignment: center;
 
         HorizontalLayout {
@@ -28,14 +28,14 @@ export component MetricTile inherits Rectangle {
                 text: root.label;
                 color: Theme.text_secondary;
                 font-family: Theme.font_family;
-                font-size: 10px;
+                font-size: Theme.text_xs;
                 font-weight: Theme.font_weight_bold;
                 overflow: elide;
             }
 
             Rectangle {
-                width: 6px;
-                height: 6px;
+                width: 7px;
+                height: 7px;
                 border-radius: Theme.radius_full;
                 background: root.status == "error" ? Theme.status_error :
                             (root.status == "warning" ? Theme.status_warning :
@@ -59,7 +59,7 @@ export component MetricTile inherits Rectangle {
             text: root.subtext;
             color: Theme.text_secondary;
             font-family: Theme.font_family;
-            font-size: 10px;
+            font-size: Theme.text_xs;
             overflow: elide;
         }
     }

@@ -459,9 +459,8 @@ pub fn run_core_pipeline(
         }
     }
 
-    let _os_governor = app_core::os_governor::ExecutionGovernorGuard::acquire(
-        config.processing.high_performance,
-    );
+    let _os_governor =
+        app_core::os_governor::ExecutionGovernorGuard::acquire(config.processing.high_performance);
 
     let exiftool_manager = ExifToolManager::new();
     let binary_path = if let Some(path) = config.exiftool_path.clone() {
@@ -488,7 +487,10 @@ pub fn run_core_pipeline(
         let cores = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
-        config.processing.max_workers.max((cores * 3 / 4).clamp(4, 16))
+        config
+            .processing
+            .max_workers
+            .max((cores * 3 / 4).clamp(4, 16))
     };
     let pool = ExifToolPool::new(binary_path, pool_size)?;
 

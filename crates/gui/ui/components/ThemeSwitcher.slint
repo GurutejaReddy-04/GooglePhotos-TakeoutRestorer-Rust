@@ -4,7 +4,7 @@ export component ThemeSwitcher inherits Rectangle {
     in property <string> theme: "System"; // "System", "Light", "Dark"
     callback change_theme(string);
 
-    height: 28px;
+    height: Theme.compact_control_height;
     background: Theme.bg_subtle;
     border-radius: Theme.radius_md;
     border-width: 1px;
@@ -31,12 +31,12 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Text { text: "☀"; font-size: 11px; vertical-alignment: center; }
+                    Text { text: "☀"; font-size: 12px; vertical-alignment: center; }
                     Text {
                         text: "Light";
                         color: root.theme == "Light" ? Theme.text_primary : Theme.text_secondary;
                         font-family: Theme.font_family;
-                        font-size: 11px;
+                        font-size: Theme.text_xs;
                         font-weight: root.theme == "Light" ? Theme.font_weight_bold : Theme.font_weight_medium;
                         vertical-alignment: center;
                     }
@@ -61,12 +61,12 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Text { text: "◐"; font-size: 11px; vertical-alignment: center; }
+                    Text { text: "◐"; font-size: 12px; vertical-alignment: center; }
                     Text {
                         text: "Auto";
                         color: root.theme == "System" ? Theme.text_primary : Theme.text_secondary;
                         font-family: Theme.font_family;
-                        font-size: 11px;
+                        font-size: Theme.text_xs;
                         font-weight: root.theme == "System" ? Theme.font_weight_bold : Theme.font_weight_medium;
                         vertical-alignment: center;
                     }
@@ -91,12 +91,12 @@ export component ThemeSwitcher inherits Rectangle {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 4px;
-                    Text { text: "🌙"; font-size: 11px; vertical-alignment: center; }
+                    Text { text: "🌙"; font-size: 12px; vertical-alignment: center; }
                     Text {
                         text: "Dark";
                         color: root.theme == "Dark" ? Theme.text_primary : Theme.text_secondary;
                         font-family: Theme.font_family;
-                        font-size: 11px;
+                        font-size: Theme.text_xs;
                         font-weight: root.theme == "Dark" ? Theme.font_weight_bold : Theme.font_weight_medium;
                         vertical-alignment: center;
                     }

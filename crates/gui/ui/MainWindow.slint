@@ -14,6 +14,7 @@ import { OutputModeSelector } from "components/OutputModeSelector.slint";
 import { ThemeSwitcher } from "components/ThemeSwitcher.slint";
 import { UtilityDialog } from "components/UtilityDialog.slint";
 import { UtilityProgress } from "components/UtilityProgress.slint";
+import { LogPanel } from "components/LogPanel.slint";
 import { ErrorDialog } from "ErrorDialog.slint";
 import { ListView } from "std-widgets.slint";
 import { DestinationValidation, SettingsSnapshot, ProcessingSnapshot, PastRun } from "Models.slint";
@@ -41,13 +42,14 @@ export component MainWindow inherits Window {
     in-out property <string> pending_delete_run_title: "";
     in property <bool> show_fatal_error: false;
     in property <string> fatal_error_message: "";
-    in property <string> app_version: "v0.1.9";
+    in property <string> app_version: "v0.2.0";
     
     // Data model snapshots
     in property <[PastRun]> past_runs: [];
     in property <[string]> inputs: [];
     in property <SettingsSnapshot> settings;
     in property <ProcessingSnapshot> processing;
+    in property <[string]> activity_logs: [];
     
     // Search & Filter state
     property <string> search_text: "";
@@ -88,7 +90,7 @@ export component MainWindow inherits Window {
 
         // --- TOP APPLICATION HEADER BAR ---
         Rectangle {
-            height: 52px;
+            height: 58px;
             background: Theme.bg_panel;
 
             Rectangle {
@@ -111,7 +113,7 @@ export component MainWindow inherits Window {
                         // Brand Title
                         Text {
                             text: "Google Photos Takeout Restorer";
-                            font-size: Theme.text_lg;
+                            font-size: 18px;
                             font-weight: Theme.font_weight_bold;
                             color: Theme.text_primary;
                             font-family: Theme.font_family;
@@ -122,18 +124,18 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Rectangle {
-                                height: 18px;
+                                height: 22px;
                                 background: Theme.bg_subtle;
                                 border-radius: Theme.radius_sm;
                                 border-width: 1px;
                                 border-color: Theme.border_subtle;
                                 HorizontalLayout {
-                                    padding-left: 6px;
-                                    padding-right: 6px;
+                                    padding-left: 8px;
+                                    padding-right: 8px;
                                     alignment: center;
                                     Text {
                                         text: root.app_version;
-                                        font-size: 10px;
+                                        font-size: Theme.text_xs;
                                         color: Theme.text_secondary;
                                         font-family: Theme.font_family;
                                         font-weight: Theme.font_weight_medium;
@@ -147,9 +149,9 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Rectangle {
-                                height: 26px;
+                                height: 30px;
                                 background: root.processing.is_processing ? Theme.accent_soft : Theme.bg_subtle;
-                                border-radius: 13px;
+                                border-radius: 15px;
                                 border-width: 1px;
                                 border-color: root.processing.is_processing ? Theme.accent_primary.with-alpha(0.4) : Theme.border_subtle;
 
@@ -159,13 +161,13 @@ export component MainWindow inherits Window {
                                     spacing: Theme.space_2;
                                     alignment: center;
 
-                                    // Vertically Centered Green Dot
+                                    // Vertically Centered Status Dot
                                     VerticalLayout {
                                         alignment: center;
                                         Rectangle {
-                                            width: 8px;
-                                            height: 8px;
-                                            border-radius: 4px;
+                                            width: 9px;
+                                            height: 9px;
+                                            border-radius: 4.5px;
                                             background: root.processing.is_processing ? Theme.accent_primary :
                                                         (root.processing.is_finished ? Theme.status_success : Theme.text_disabled);
                                         }
@@ -179,6 +181,30 @@ export component MainWindow inherits Window {
                                         font-size: Theme.text_xs;
                                         font-weight: Theme.font_weight_semibold;
                                         font-family: Theme.font_family;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
+                        // High Performance Turbo Badge
+                        if (root.settings.high_performance): VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                height: 22px;
+                                background: Theme.accent_soft;
+                                border-radius: Theme.radius_sm;
+                                border-width: 1px;
+                                border-color: Theme.accent_primary.with-alpha(0.4);
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    alignment: center;
+                                    Text {
+                                        text: "⚡ Turbo";
+                                        font-size: Theme.text_xs;
+                                        color: Theme.accent_primary;
+                                        font-weight: Theme.font_weight_bold;
                                         vertical-alignment: center;
                                     }
                                 }
@@ -292,10 +318,10 @@ export component MainWindow inherits Window {
                 spacing: 0px;
 
                 // =========================================================
-                // LEFT PANE: CONFIGURATION & CONTROL PANEL (FIXED WIDTH 360PX)
+                // LEFT PANE: CONFIGURATION & CONTROL PANEL (FIXED WIDTH 380PX)
                 // =========================================================
                 Rectangle {
-                    width: 360px;
+                    width: 380px;
                     background: Theme.bg_panel;
 
                     // Panel Right Border
@@ -370,7 +396,7 @@ export component MainWindow inherits Window {
 
                                         // Source items list
                                         Rectangle {
-                                            height: root.inputs.length == 0 ? 24px : Math.min(180px, Math.max(70px, root.inputs.length * 35px));
+                                            height: root.inputs.length == 0 ? 28px : Math.min(200px, Math.max(76px, root.inputs.length * 38px));
 
                                             if (root.inputs.length == 0): HorizontalLayout {
                                                 padding-left: Theme.space_1;
@@ -394,34 +420,34 @@ export component MainWindow inherits Window {
 
                                                 ListView {
                                                     for path in root.inputs: Rectangle {
-                                                        height: 34px;
+                                                        height: 38px;
                                                         HorizontalLayout {
                                                             padding-left: Theme.space_3;
                                                             padding-right: Theme.space_2;
                                                             spacing: Theme.space_2;
                                                             Text {
                                                                 text: "📁";
-                                                                font-size: Theme.text_xs;
+                                                                font-size: Theme.text_sm;
                                                                 vertical-alignment: center;
                                                             }
                                                             Text {
                                                                 horizontal-stretch: 1;
                                                                 text: path;
                                                                 color: Theme.text_primary;
-                                                                font-size: Theme.text_xs;
+                                                                font-size: Theme.text_sm;
                                                                 font-weight: Theme.font_weight_medium;
                                                                 font-family: Theme.font_family;
                                                                 vertical-alignment: center;
                                                                 overflow: elide;
                                                             }
                                                             if (!root.processing.is_processing): TouchArea {
-                                                                width: 24px;
+                                                                width: 28px;
                                                                 mouse-cursor: pointer;
                                                                 clicked => { root.remove_input(path); }
                                                                 Text {
                                                                     text: "×";
                                                                     color: Theme.text_secondary;
-                                                                    font-size: Theme.text_xs;
+                                                                    font-size: Theme.text_sm;
                                                                     horizontal-alignment: center;
                                                                     vertical-alignment: center;
                                                                 }
@@ -527,7 +553,7 @@ export component MainWindow inherits Window {
                                                 Text {
                                                     text: round(root.settings.destination_validation.free_gb * 10.0) / 10.0 + " GB free of " + round(root.settings.destination_validation.total_gb) + " GB";
                                                     color: Theme.text_secondary;
-                                                    font-size: 11px;
+                                                    font-size: Theme.text_xs;
                                                 }
                                             }
 
@@ -538,7 +564,7 @@ export component MainWindow inherits Window {
                                             if (root.settings.destination_validation.message != ""): Text {
                                                 text: root.settings.destination_validation.message;
                                                 color: Theme.text_secondary;
-                                                font-size: 11px;
+                                                font-size: Theme.text_xs;
                                                 wrap: word-wrap;
                                             }
                                         }
@@ -605,7 +631,7 @@ export component MainWindow inherits Window {
                             spacing: Theme.space_2;
 
                             if (!root.processing.is_processing): PrimaryButton {
-                                height: 48px;
+                                height: 50px;
                                 text: "Start Restoration Engine";
                                 icon: "⚡";
                                 enabled: root.can_start;
@@ -620,7 +646,7 @@ export component MainWindow inherits Window {
                             }
 
                             if (root.processing.is_processing): DangerButton {
-                                height: 48px;
+                                height: 50px;
                                 text: "Cancel Restoration";
                                 icon: "⏹";
                                 clicked => { root.stop_processing(); }
@@ -763,7 +789,7 @@ export component MainWindow inherits Window {
 
                             if (root.past_runs.length > 0): ListView {
                                 for run in root.past_runs: Rectangle {
-                                    height: 84px;
+                                    height: 88px;
                                     background: row_ta.has-hover ? Theme.bg_hover : transparent;
 
                                     row_ta := TouchArea { }
@@ -785,7 +811,7 @@ export component MainWindow inherits Window {
                                                     font-family: Theme.font_family;
                                                 }
                                                 if (run.has_recovery_data): Rectangle {
-                                                    height: 20px;
+                                                    height: 22px;
                                                     background: Theme.status_warning.with-alpha(0.2);
                                                     border-radius: Theme.radius_sm;
                                                     border-width: 1px;
@@ -890,7 +916,7 @@ export component MainWindow inherits Window {
                                 }
 
                                 Rectangle {
-                                    height: 32px;
+                                    height: 36px;
                                     background: Theme.bg_subtle;
                                     border-radius: Theme.radius_sm;
                                     HorizontalLayout {
@@ -899,7 +925,7 @@ export component MainWindow inherits Window {
                                         Text {
                                             text: root.processing.current_filename == "" ? root.processing.current_phase_text : root.processing.current_filename;
                                             color: Theme.text_secondary;
-                                            font-size: Theme.text_xs;
+                                            font-size: Theme.text_sm;
                                             font-family: Theme.font_family;
                                             vertical-alignment: center;
                                             overflow: elide;
@@ -907,6 +933,13 @@ export component MainWindow inherits Window {
                                     }
                                 }
                             }
+                        }
+
+                        // Telemetry & Activity Log Panel
+                        LogPanel {
+                            vertical-stretch: 1;
+                            logs: root.activity_logs;
+                            copy_log_path => { root.copy_log_path(); }
                         }
                     }
 
@@ -1039,7 +1072,7 @@ export component MainWindow inherits Window {
 
                                 // Table Header
                                 Rectangle {
-                                    height: 32px;
+                                    height: 36px;
                                     background: Theme.bg_subtle;
 
                                     HorizontalLayout {
@@ -1073,7 +1106,7 @@ export component MainWindow inherits Window {
                                 if (root.processing.results.length > 0): ListView {
                                     vertical-stretch: 1;
                                     for res in root.processing.results: Rectangle {
-                                        height: 52px;
+                                        height: 56px;
                                         background: res_ta.has-hover ? Theme.bg_hover : transparent;
 
                                         res_ta := TouchArea { }
@@ -1090,9 +1123,9 @@ export component MainWindow inherits Window {
                                                 VerticalLayout {
                                                     alignment: center;
                                                     Rectangle {
-                                                        width: 8px;
-                                                        height: 8px;
-                                                        border-radius: Theme.radius_full;
+                                                        width: 9px;
+                                                        height: 9px;
+                                                        border-radius: 4.5px;
                                                         background: res.status == "Error" ? Theme.status_error :
                                                                     (res.status == "Unmatched" ? Theme.status_warning :
                                                                     (res.status == "Skipped" ? Theme.text_disabled : Theme.status_success));
@@ -1101,7 +1134,7 @@ export component MainWindow inherits Window {
                                                 Text {
                                                     text: res.status;
                                                     color: res.status == "Error" ? Theme.status_error : Theme.text_primary;
-                                                    font-size: Theme.text_xs;
+                                                    font-size: Theme.text_sm;
                                                     font-weight: Theme.font_weight_semibold;
                                                     vertical-alignment: center;
                                                 }
@@ -1111,7 +1144,7 @@ export component MainWindow inherits Window {
                                             VerticalLayout {
                                                 width: 320px;
                                                 alignment: center;
-                                                Text { text: res.filename; color: Theme.text_primary; font-size: Theme.text_xs; font-weight: Theme.font_weight_semibold; overflow: elide; }
+                                                Text { text: res.filename; color: Theme.text_primary; font-size: Theme.text_base; font-weight: Theme.font_weight_medium; overflow: elide; }
                                                 Text { text: res.media_type; color: Theme.text_secondary; font-size: Theme.text_xs; overflow: elide; }
                                             }
 

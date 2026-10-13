@@ -5,12 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Planned for v0.2.0
+## [Unreleased]
 
-### Planned Performance & Architecture
-- **Lock-Free File Destination Handling**: Eliminate static `FILE_MOVE_MUTEX` contention across worker threads.
-- **In-Memory Sidecar JSON Streaming**: Bypass `.staging/` disk roundtrip by streaming JSON bytes over channels.
-- **Independent SQLite Connection Pool**: Separate read queries from WAL transaction writer loop.
+## [0.2.0] - 2026-10-13
+
+### Added
+- **Continuous Streaming Pipeline**: Producer-consumer architecture with backpressure channel buffers, eliminating full upfront directory scan delays before media restoration begins.
+- **Lock-Free Atomic Destination Handling**: Replaced static global file move mutex with atomic filesystem operations and per-destination isolation, unlocking maximum parallel throughput for multi-core Rayon workers.
+- **In-Memory Microsecond Sidecar Processing**: Replaced recursive disk staging folder roundtrips with direct in-memory sidecar payload streaming, saving hundreds of thousands of filesystem syscalls on large libraries.
+- **Cross-Platform Anti-Throttling Execution Governor & Native Sleep Inhibitor**:
+  - Automatically inhibits OS sleep, display sleep, and CPU energy throttling when High Performance Mode is active.
+  - Native Windows `SetThreadExecutionState` (`ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED`).
+  - Native macOS `IOPMAssertionCreateWithName` (`kIOPMAssertionTypePreventUserIdleSystemSleep`).
+  - Native Linux FreeDesktop ScreenSaver / systemd-inhibit D-Bus support.
+- **Windows Job Object Child Process Supervisor**: Windows Job Object configuration with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, guaranteeing that spawned ExifTool worker processes terminate immediately with zero orphaned or zombie processes on application exit or unexpected crashes.
+- **Multi-Row SQLite WAL Batching**: High-throughput database update batching (`write_batch`), reducing disk sync operations by over 80% while preserving crash resilience.
+- **Comprehensive UI/UX & Typography Overhaul**:
+  - Upgraded global typography scale with strict `12px` minimum font size (`text_xs: 12px`, `text_sm: 13px`, `text_base: 14px`, `text_lg: 17px`, `text_2xl: 28px`), eliminating all small/unreadable text.
+  - Scaled control dimensions (`control_height: 36px`, `compact_control_height: 32px`).
+  - Expanded left configuration sidebar to `380px` for comfortable setting label fit without text clipping.
+  - Added dedicated `⚡ Turbo` indicator badge on header bar reflecting High Performance Mode status.
+  - Modernized Output Mode Selector (`64px` min-height) with crisp radio indicators.
+  - Modernized Metric Tiles (`80px` height) with high-contrast label and value hierarchy.
+  - Embedded real-time `LogPanel` telemetry into the Live Monitor tab with 1-click clipboard path copying.
+  - Enhanced Results Inspector with `56px` row heights, `14px` filename text, and distinct status dot indicators.
+
+### Changed
+- Increased buffered file I/O streams to 1MB chunks for large video and high-resolution photo transfers across storage volumes.
+- Enhanced match logging to output explicit counts of indexed sidecars and matched pairs in real time.
 
 ## [0.1.9] - 2026-08-10
 

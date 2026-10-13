@@ -13,6 +13,7 @@ jobs:
       contents: read
       actions: write
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -65,7 +66,7 @@ jobs:
     - name: Generate macOS ICNS
       if: runner.os == 'macOS'
       run: |
-        mkdir assets/icon.iconset
+        mkdir -p assets/icon.iconset
         sips -z 16 16     assets/icon.png --out assets/icon.iconset/icon_16x16.png
         sips -z 32 32     assets/icon.png --out assets/icon.iconset/icon_16x16@2x.png
         sips -z 32 32     assets/icon.png --out assets/icon.iconset/icon_32x32.png
@@ -76,7 +77,7 @@ jobs:
         sips -z 512 512   assets/icon.png --out assets/icon.iconset/icon_256x256@2x.png
         sips -z 512 512   assets/icon.png --out assets/icon.iconset/icon_512x512.png
         sips -z 1024 1024 assets/icon.png --out assets/icon.iconset/icon_512x512@2x.png
-        iconutil -c icns assets/icon.iconset
+        iconutil -c icns assets/icon.iconset -o assets/icon.icns
 
     - name: Run Packager
       run: cargo packager --release --target ${{ matrix.target }}

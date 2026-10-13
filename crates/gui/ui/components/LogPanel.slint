@@ -16,7 +16,7 @@ export component LogPanel inherits Rectangle {
 
         // Panel header
         Rectangle {
-            height: 32px;
+            height: 36px;
             background: Theme.bg_panel;
 
             Rectangle {
@@ -38,7 +38,7 @@ export component LogPanel inherits Rectangle {
                         text: "SYSTEM LOG ACTIVITY";
                         color: Theme.text_secondary;
                         font-family: Theme.font_family;
-                        font-size: 10px;
+                        font-size: Theme.text_xs;
                         font-weight: Theme.font_weight_bold;
                         vertical-alignment: center;
                     }
@@ -46,7 +46,7 @@ export component LogPanel inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         Rectangle {
-                            height: 16px;
+                            height: 18px;
                             background: Theme.accent_soft;
                             border-radius: Theme.radius_full;
                             HorizontalLayout {
@@ -55,7 +55,7 @@ export component LogPanel inherits Rectangle {
                                 Text {
                                     text: root.logs.length + " lines";
                                     color: Theme.accent_primary;
-                                    font-size: 10px;
+                                    font-size: Theme.text_xs;
                                     font-weight: Theme.font_weight_bold;
                                     vertical-alignment: center;
                                 }
@@ -65,7 +65,7 @@ export component LogPanel inherits Rectangle {
                 }
 
                 TouchArea {
-                    width: 110px;
+                    width: 120px;
                     mouse-cursor: pointer;
                     clicked => { root.copy_log_path(); }
 
@@ -74,7 +74,7 @@ export component LogPanel inherits Rectangle {
                         alignment: end;
                         Text {
                             text: "📋";
-                            font-size: 11px;
+                            font-size: Theme.text_xs;
                             vertical-alignment: center;
                         }
                         Text {
@@ -107,7 +107,7 @@ export component LogPanel inherits Rectangle {
 
             if (root.logs.length > 0): ListView {
                 for log[idx] in root.logs: HorizontalLayout {
-                    height: 20px;
+                    height: 22px;
                     padding-left: Theme.space_2;
                     padding-right: Theme.space_2;
                     spacing: Theme.space_2;
@@ -117,7 +117,7 @@ export component LogPanel inherits Rectangle {
                         text: (idx + 1) + "";
                         color: Theme.text_disabled;
                         font-family: "monospace";
-                        font-size: 11px;
+                        font-size: 12px;
                         horizontal-alignment: right;
                         vertical-alignment: center;
                     }
@@ -127,7 +127,7 @@ export component LogPanel inherits Rectangle {
                         text: log;
                         color: Theme.text_secondary;
                         font-family: "monospace";
-                        font-size: 11px;
+                        font-size: 12px;
                         vertical-alignment: center;
                         overflow: elide;
                     }

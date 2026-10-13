@@ -265,8 +265,7 @@ impl<'a> Processor<'a> {
                             let mut proposed_path = target_path.clone();
                             proposed_path.set_extension(true_ext.trim_start_matches('.'));
 
-                            let _lock =
-                                FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+                            let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
                             let new_path = resolve_collision(
                                 proposed_path.parent().unwrap_or(Path::new("")),
                                 &proposed_path,
@@ -288,10 +287,7 @@ impl<'a> Processor<'a> {
                             Ok(parsed_meta) => {
                                 // Set filesystem timestamps to the photo taken time
                                 if let Some(meta) = &parsed_meta {
-                                    self.set_file_timestamps(
-                                        &target_path,
-                                        meta.taken_timestamp,
-                                    );
+                                    self.set_file_timestamps(&target_path, meta.taken_timestamp);
                                 }
 
                                 // Move file to appropriate output subdirectory
@@ -301,7 +297,11 @@ impl<'a> Processor<'a> {
                                     parsed_meta.is_some(),
                                 );
 
-                                let status_tag = if parsed_meta.is_some() { "RESTORED" } else { "UNMATCHED" };
+                                let status_tag = if parsed_meta.is_some() {
+                                    "RESTORED"
+                                } else {
+                                    "UNMATCHED"
+                                };
                                 crate::logger::log_restoration_event(&format!(
                                     "{}: {} -> {}",
                                     status_tag,
@@ -342,8 +342,7 @@ impl<'a> Processor<'a> {
                                 ));
 
                                 // Move to Errors subdirectory
-                                let final_path =
-                                    self.move_to_error_subdir(&target_path, &media);
+                                let final_path = self.move_to_error_subdir(&target_path, &media);
 
                                 if let Err(db_err) = self.db.enqueue_status_update(
                                     StatusUpdate::Error(media.id, e.to_string()),
@@ -440,9 +439,10 @@ impl<'a> Processor<'a> {
                             fs::copy(p, &temp_dest).and_then(|_| fs::rename(&temp_dest, &dest));
                         if let Err(e) = copy_result {
                             let _ = fs::remove_file(&temp_dest);
-                            if let Err(db_err) = self.db.enqueue_status_update(
-                                StatusUpdate::Error(media.id, format!("Copy failed: {}", e)),
-                            ) {
+                            if let Err(db_err) = self.db.enqueue_status_update(StatusUpdate::Error(
+                                media.id,
+                                format!("Copy failed: {}", e),
+                            )) {
                                 self.publisher.publish(AppEvent::Error {
                                     file_id: None,
                                     fatal: true,
@@ -478,7 +478,9 @@ impl<'a> Processor<'a> {
                                 None => {
                                     let m: HashMap<String, usize> = (0..zip.len())
                                         .filter_map(|idx| {
-                                            zip.by_index(idx).ok().map(|f| (f.name().to_string(), idx))
+                                            zip.by_index(idx)
+                                                .ok()
+                                                .map(|f| (f.name().to_string(), idx))
                                         })
                                         .collect();
                                     let mut cache = self

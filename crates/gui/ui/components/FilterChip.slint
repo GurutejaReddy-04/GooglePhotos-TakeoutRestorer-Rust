@@ -8,7 +8,7 @@ export component FilterChip inherits Rectangle {
 
     callback clicked();
 
-    height: 28px;
+    height: Theme.compact_control_height;
     background: !root.enabled ? Theme.bg_subtle :
                 (root.selected ? Theme.accent_primary :
                 (touch.has-hover ? Theme.bg_hover : Theme.bg_surface));
@@ -36,7 +36,7 @@ export component FilterChip inherits Rectangle {
                    (root.selected ? Theme.text_on_accent : Theme.text_primary);
             font-family: Theme.font_family;
             font-size: Theme.text_xs;
-            font-weight: root.selected ? Theme.font_weight_semibold : Theme.font_weight_medium;
+            font-weight: root.selected ? Theme.font_weight_bold : Theme.font_weight_medium;
             vertical-alignment: center;
         }
 

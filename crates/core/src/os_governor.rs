@@ -71,7 +71,9 @@ impl ExecutionGovernorGuard {
             let res = SetThreadExecutionState(exec_state);
             if res != 0 {
                 sleep_inhibited = true;
-                debug!("Acquired Windows execution state: ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED");
+                debug!(
+                    "Acquired Windows execution state: ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED"
+                );
             }
 
             // 2. High Performance optimizations
@@ -116,13 +118,19 @@ impl ExecutionGovernorGuard {
     #[cfg(target_os = "macos")]
     fn acquire_macos(high_performance: bool) -> Self {
         // macOS App Nap and Sleep Inhibit
-        info!("Acquired macOS power assertion (High Performance: {})", high_performance);
+        info!(
+            "Acquired macOS power assertion (High Performance: {})",
+            high_performance
+        );
         Self { activity_id: None }
     }
 
     #[cfg(target_os = "linux")]
     fn acquire_linux(high_performance: bool) -> Self {
-        info!("Acquired Linux power assertion (High Performance: {})", high_performance);
+        info!(
+            "Acquired Linux power assertion (High Performance: {})",
+            high_performance
+        );
         Self { inhibit_fd: None }
     }
 }
@@ -196,12 +204,7 @@ impl JobObjectSupervisor {
 
                 let ptr = &mut info as *mut _ as *mut _;
                 let size = size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32;
-                let ok = SetInformationJobObject(
-                    job,
-                    JobObjectExtendedLimitInformation,
-                    ptr,
-                    size,
-                );
+                let ok = SetInformationJobObject(job, JobObjectExtendedLimitInformation, ptr, size);
 
                 if ok == 0 {
                     warn!("Failed to set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on Windows Job Object");
@@ -228,9 +231,15 @@ impl JobObjectSupervisor {
         let handle = child.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE;
         unsafe {
             if AssignProcessToJobObject(self.job_handle, handle) != 0 {
-                debug!("Attached child process PID {} to Windows Job Object", child.id());
+                debug!(
+                    "Attached child process PID {} to Windows Job Object",
+                    child.id()
+                );
             } else {
-                warn!("Failed to assign child process PID {} to Windows Job Object", child.id());
+                warn!(
+                    "Failed to assign child process PID {} to Windows Job Object",
+                    child.id()
+                );
             }
         }
     }

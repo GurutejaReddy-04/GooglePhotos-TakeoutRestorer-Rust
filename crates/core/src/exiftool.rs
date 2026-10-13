@@ -235,9 +235,12 @@ impl ExifToolEngine {
     }
 
     pub fn execute(&self, args: &[&str]) -> Result<String, AppError> {
-        let count = self.op_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let count = self
+            .op_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if count >= 2500 {
-            self.op_counter.store(0, std::sync::atomic::Ordering::Relaxed);
+            self.op_counter
+                .store(0, std::sync::atomic::Ordering::Relaxed);
             debug!("Recycling ExifTool engine process after 2,500 operations to bound memory");
             let mut process_guard = self.process.lock().unwrap_or_else(|e| e.into_inner());
             *process_guard = None; // Drop child process cleanly

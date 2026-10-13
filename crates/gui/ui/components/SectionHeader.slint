@@ -25,7 +25,7 @@ export component SectionHeader inherits VerticalLayout {
             }
 
             if (root.badge != ""): Rectangle {
-                height: 18px;
+                height: 22px;
                 background: Theme.accent_soft;
                 border-radius: Theme.radius_sm;
                 border-width: 1px;
@@ -51,7 +51,7 @@ export component SectionHeader inherits VerticalLayout {
         text: root.subtitle;
         color: Theme.text_secondary;
         font-family: Theme.font_family;
-        font-size: Theme.text_xs;
+        font-size: Theme.text_sm;
         wrap: word-wrap;
     }
 }
