@@ -575,7 +575,7 @@ pub fn run_core_pipeline(
     let log_file = output.join("Logs").join("restoration.log");
     let _ = app_core::logger::set_active_log_file(&log_file);
     app_core::logger::log_restoration_event(&format!(
-        "=== Google Photos Takeout Restorer Run: {} ===",
+        "=== Takeout Restorer Run: {} ===",
         run_id
     ));
     app_core::logger::log_restoration_event(&format!(

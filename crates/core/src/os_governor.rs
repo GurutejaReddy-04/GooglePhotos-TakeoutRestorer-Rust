@@ -7,6 +7,7 @@
 //! 4. Zero zombie processes via Windows Job Objects (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
 //!    and Unix process group / PDEATHSIG supervision.
 
+#[allow(unused_imports)]
 use tracing::{debug, info, warn};
 
 /// RAII Guard that manages OS execution state, power throttling, and process priority.
@@ -19,8 +20,10 @@ pub struct ExecutionGovernorGuard {
     #[cfg(windows)]
     sleep_inhibited: bool,
     #[cfg(target_os = "macos")]
+    #[allow(dead_code)]
     activity_id: Option<usize>,
     #[cfg(target_os = "linux")]
+    #[allow(dead_code)]
     inhibit_fd: Option<i32>,
 }
 
@@ -269,9 +272,9 @@ mod tests {
     fn test_execution_governor_acquire_and_drop() {
         // Test Normal mode (false)
         {
-            let guard = ExecutionGovernorGuard::acquire(false);
+            let _guard = ExecutionGovernorGuard::acquire(false);
             #[cfg(windows)]
-            assert!(!guard.power_throttling_disabled);
+            assert!(!_guard.power_throttling_disabled);
         }
 
         // Test High Performance mode (true)

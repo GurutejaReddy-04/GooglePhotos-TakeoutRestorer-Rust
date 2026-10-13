@@ -1,6 +1,6 @@
 # Roadmap & Future Performance Architecture
 
-This document tracks verified architectural bottlenecks, platform-specific runtime behaviors, and future optimization milestones for the Google Photos Takeout Restorer codebase.
+This document tracks verified architectural bottlenecks, platform-specific runtime behaviors, and future optimization milestones for the Takeout Restorer codebase.
 
 ---
 

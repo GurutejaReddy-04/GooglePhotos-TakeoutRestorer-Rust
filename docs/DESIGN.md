@@ -1,4 +1,4 @@
-# Google Photos Takeout Restorer - Design System (Modern Utility)
+# Takeout Restorer - Design System (Modern Utility)
 
 ## 1. Design Principles
 This application is designed as a **Professional Desktop Utility**. The philosophy is grounded in three core principles:

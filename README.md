@@ -1,4 +1,4 @@
-# Google Photos Takeout Restorer
+# Takeout Restorer
 
 [![Latest Release](https://img.shields.io/github/v/release/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases)
 [![Release Workflow](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/release.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
@@ -7,7 +7,7 @@
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#platform-compatibility)
 
-> A multi-threaded, cross-platform Rust tool that re-embeds Google Photos Takeout metadata (EXIF, GPS, timestamps) back into the original media files.
+> A high-performance, cross-platform Rust utility that re-embeds Google Photos Takeout metadata (EXIF, GPS, timestamps) back into original media files.
 
 ---
 
@@ -18,7 +18,7 @@ When you download your photo library from **Google Photos Takeout**, Google sepa
 2. **Reset Timestamps:** File creation and modification dates are reset to the exact moment you downloaded the archive.
 3. **Truncated & Duplicate Filenames:** Google Takeout truncates long filenames (e.g. `IMG_20210503_120000(1).jpg` becomes `IMG_20210503_120000(.json`), causing standard metadata fixers to fail.
 
-**Google Photos Takeout Restorer** solves this by matching sidecar JSONs to media files (handling truncated filenames, duplicate indexing, and nested album directories), re-embedding EXIF metadata via ExifTool, correcting misnamed file extensions via magic-byte inspection, and restoring original filesystem timestamps.
+**Takeout Restorer** solves this by matching sidecar JSONs to media files (handling truncated filenames, duplicate indexing, and nested album directories), re-embedding EXIF metadata via ExifTool, correcting misnamed file extensions via magic-byte inspection, and restoring original filesystem timestamps.
 
 ---
 
@@ -115,7 +115,7 @@ cargo run --release -- --gui
 
 > [!NOTE]
 > **Metadata Restoration Scope**  
-> Google Photos Takeout Restorer is a metadata restoration tool designed to restore metadata separated by Google Takeout into `.json` sidecar files. The GPS restoration toggle controls whether location data from sidecars is re-embedded; it is not a privacy/EXIF scrubber and does not strip pre-existing GPS coordinates embedded by the camera at capture time.
+> **Takeout Restorer** is a metadata restoration tool designed to restore metadata separated by Google Takeout into `.json` sidecar files. The GPS restoration toggle controls whether location data from sidecars is re-embedded; it is not a privacy/EXIF scrubber and does not strip pre-existing GPS coordinates embedded by the camera at capture time.
 
 ### 2. Command Line Interface (CLI Mode)
 Run headlessly in server or automated batch environments:
@@ -150,6 +150,7 @@ For in-depth guides on architecture, performance, configuration, and release pro
 - 🚀 **[Release Process](docs/release_process.md)** — Step-by-step CI/CD release workflow and QA checklist.
 - ⚡ **[Performance & Benchmarking](docs/PERFORMANCE.md)** — IPC STDIN protocols, line-ending quirks, and benchmark datasets.
 - 🏗️ **[Architecture Guide](docs/architecture_guide.md)** — Event-driven MVVM design and crate structure.
+- 🎨 **[Design System](docs/DESIGN.md)** — UI design tokens, typography scale, semantics, and accessibility rules.
 
 ---
 
@@ -174,6 +175,14 @@ The following table contrasts the architectural design choices between the origi
 | **Processing Throughput** | Bounded by GIL and subprocess dispatch serialization. | Bounded by disk I/O and ExifTool worker pool saturation. | *Empirical Benchmark Pending (1,000+ file dataset required)* |
 
 Both repositories are publicly maintained to document this technical evolution.
+
+---
+
+## ⚖️ Trademark Disclaimer
+
+Google Photos™ and Google Takeout™ are registered trademarks of Google LLC.
+
+**Takeout Restorer** is an independent, community-driven open-source software project. It is **not** affiliated with, endorsed by, sponsored by, or associated in any way with Google LLC or Alphabet Inc. All trademarks, service marks, and trade names referenced herein belong to their respective owners.
 
 ---
 

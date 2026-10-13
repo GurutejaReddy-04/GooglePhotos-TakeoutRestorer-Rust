@@ -1,4 +1,4 @@
-# Contributing to Google Photos Takeout Restorer
+# Contributing to Takeout Restorer
 
 Thank you for your interest in contributing! We welcome bug reports, feature requests, documentation improvements, and code contributions.
 

@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-//! Google Photos Takeout Restorer - CLI & GUI application entry point.
+//! Takeout Restorer - CLI & GUI application entry point.
 
 use app_core::config::Config;
 use app_core::events::{AppEvent, Broadcaster, EventPublisher};
@@ -16,7 +16,7 @@ use gui::GuiRunner;
 
 /// Command-line arguments for launching the application in headless or GUI mode.
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Google Photos Takeout Restorer", long_about = None)]
+#[command(author, version, about = "Takeout Restorer - Metadata restorer for Google Photos Takeout", long_about = None)]
 struct Cli {
     /// Launch the graphical user interface.
     #[arg(long, help = "Launch the graphical user interface")]
@@ -122,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dispatcher.dispatch(UiCommand::StartProcessing)?;
 
-    println!("--- Google Photos Takeout Restorer ---");
+    println!("--- Takeout Restorer ---");
     use std::io::Write;
     let mut last_len: usize = 0;
     loop {

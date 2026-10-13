@@ -1,12 +1,16 @@
 # Architecture Guide
 
-The Google Photos Takeout Restorer is architected using an Event-Driven Model-View-ViewModel (MVVM) pattern to strictly separate business logic from UI rendering.
+Takeout Restorer is architected using an Event-Driven Model-View-ViewModel (MVVM) pattern to strictly separate business logic from UI rendering.
 
 ## Core (`crates/core`)
 - Owns all business truth.
 - Analyzes files, matches JSON metadata using Levenshtein distance, and shells out to ExifTool for metadata writes.
 - Uses `StateDatabase` (SQLite) for state persistence and resumability.
 - Processes asynchronously using `Rayon`.
+
+## ExifTool Downloader (`crates/downloader`)
+- Automatically fetches and verifies platform-specific ExifTool binaries.
+- Performs SHA-256 integrity validation and extraction for Windows (`.zip`) and Unix (`.tar.gz`).
 
 ## Shared UI (`crates/shared_ui`)
 - Maps internal `AppEvent`s into a `ProcessingSnapshot`.

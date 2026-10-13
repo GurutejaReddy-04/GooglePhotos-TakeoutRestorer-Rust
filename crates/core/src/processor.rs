@@ -698,7 +698,7 @@ impl<'a> Processor<'a> {
                 tracing::warn!("Could not initialize restoration.log: {}", e);
             } else {
                 tracing::info!(
-                    "=== Google Photos Takeout Restorer (In-Place Mode) Run: {} ===",
+                    "=== Takeout Restorer (In-Place Mode) Run: {} ===",
                     self.run_id
                 );
                 tracing::info!("Target folder: {}", self.output_dir.display());
@@ -722,7 +722,7 @@ impl<'a> Processor<'a> {
             tracing::warn!("Could not initialize restoration.log: {}", e);
         } else {
             tracing::info!(
-                "=== Google Photos Takeout Restorer Run: {} ===",
+                "=== Takeout Restorer Run: {} ===",
                 self.run_id
             );
             tracing::info!("Output destination: {}", self.output_dir.display());
