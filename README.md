@@ -1,7 +1,6 @@
 # Google Photos Takeout Restorer (Rust) — Takeout Restorer
 
 [![Latest Release](https://img.shields.io/github/v/release/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/releases)
-[![Release Workflow](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/release.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![CI Build](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions/workflows/ci.yml/badge.svg)](https://github.com/GurutejaReddy-04/GooglePhotos-TakeoutRestorer-Rust/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust: 1.75+](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
