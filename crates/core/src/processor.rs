@@ -1,3 +1,5 @@
+#![allow(clippy::manual_is_multiple_of)]
+
 use crate::config::{Config, OutputMode};
 use crate::error::AppError;
 use crate::events::{AppEvent, EventPublisher};
@@ -243,23 +245,9 @@ impl<'a> Processor<'a> {
 
                         let mut target_path = original_target_path.clone();
 
-                        // Auto-heal: detect and fix mismatched file extensions
-                        let is_non_standard = media.extension.is_empty()
-                            || media.extension == "."
-                            || !self
-                                .config
-                                .supported_image_extensions
-                                .contains(&media.extension)
-                                && !self
-                                    .config
-                                    .supported_video_extensions
-                                    .contains(&media.extension);
-
-                        let correction = if is_non_standard {
-                            crate::auto_heal::get_correction(&target_path, &media.extension)
-                        } else {
-                            None
-                        };
+                        // Auto-heal: detect and fix mismatched file extensions by inspecting magic bytes
+                        let correction =
+                            crate::auto_heal::get_correction(&target_path, &media.extension);
 
                         if let Some(true_ext) = correction {
                             let mut proposed_path = target_path.clone();
@@ -285,51 +273,200 @@ impl<'a> Processor<'a> {
 
                         match self.process_metadata(&media, &target_path) {
                             Ok(parsed_meta) => {
+                                // If unmatched files are disabled and this file has no metadata match, skip it
+                                if parsed_meta.is_none()
+                                    && !self.config.processing.unmatched_enabled
+                                {
+                                    crate::logger::log_restoration_event(&format!(
+                                        "SKIPPED (Unmatched disabled): {}",
+                                        media.filename
+                                    ));
+                                    if self.config.processing.output_mode != OutputMode::InPlace {
+                                        let staging_path = self.resolve_staging_path(&media);
+                                        if let Some(parent) = staging_path.parent() {
+                                            if parent.exists() {
+                                                let _ = fs::remove_dir_all(parent);
+                                            }
+                                        }
+                                    }
+                                    if let Err(db_err) =
+                                        self.db.enqueue_status_update(StatusUpdate::Skipped(
+                                            media.id,
+                                            "Skipped: unmatched files disabled in settings"
+                                                .to_string(),
+                                        ))
+                                    {
+                                        self.publisher.publish(AppEvent::Error {
+                                            file_id: None,
+                                            fatal: true,
+                                            message: format!("Fatal persistence error: {}", db_err),
+                                        });
+                                        cancel.store(true, Ordering::Relaxed);
+                                    }
+                                    self.publisher.publish(AppEvent::FileProcessed {
+                                        file_id: media.id,
+                                        status: FileStatus::Skipped,
+                                        bytes_written: 0,
+                                    });
+                                    return;
+                                }
+
                                 // Set filesystem timestamps to the photo taken time
                                 if let Some(meta) = &parsed_meta {
                                     self.set_file_timestamps(&target_path, meta.taken_timestamp);
                                 }
 
                                 // Move file to appropriate output subdirectory
-                                let final_path = self.move_to_output_subdir(
+                                match self.move_to_output_subdir(
                                     &target_path,
                                     &media,
                                     parsed_meta.is_some(),
-                                );
+                                ) {
+                                    Ok(final_path) => {
+                                        if !final_path.is_file() {
+                                            let err_msg = format!(
+                                                "Final output verification failed: missing at {}",
+                                                final_path.display()
+                                            );
+                                            error!("{}", err_msg);
+                                            let err_final =
+                                                self.move_to_error_subdir(&target_path, &media);
+                                            if let Err(db_err) = self.db.enqueue_status_update(
+                                                StatusUpdate::Error(media.id, err_msg.clone()),
+                                            ) {
+                                                self.publisher.publish(AppEvent::Error {
+                                                    file_id: None,
+                                                    fatal: true,
+                                                    message: format!(
+                                                        "Fatal persistence error: {}",
+                                                        db_err
+                                                    ),
+                                                });
+                                                cancel.store(true, Ordering::Relaxed);
+                                            }
+                                            self.publisher.publish(AppEvent::Error {
+                                                file_id: Some(media.id),
+                                                fatal: false,
+                                                message: format!(
+                                                    "{}: {}",
+                                                    err_final.display(),
+                                                    err_msg
+                                                ),
+                                            });
+                                            self.publisher.publish(AppEvent::FileProcessed {
+                                                file_id: media.id,
+                                                status: FileStatus::Error,
+                                                bytes_written: 0,
+                                            });
+                                        } else {
+                                            let status_tag = if parsed_meta.is_some() {
+                                                "RESTORED"
+                                            } else {
+                                                "UNMATCHED"
+                                            };
+                                            crate::logger::log_restoration_event(&format!(
+                                                "{}: {} -> {}",
+                                                status_tag,
+                                                media.filename,
+                                                final_path.display()
+                                            ));
 
-                                let status_tag = if parsed_meta.is_some() {
-                                    "RESTORED"
-                                } else {
-                                    "UNMATCHED"
-                                };
-                                crate::logger::log_restoration_event(&format!(
-                                    "{}: {} -> {}",
-                                    status_tag,
-                                    media.filename,
-                                    final_path.display()
-                                ));
+                                            let bytes_written = if media.size > 0 {
+                                                media.size as u64
+                                            } else {
+                                                std::fs::metadata(&final_path)
+                                                    .map(|m| m.len())
+                                                    .unwrap_or(0)
+                                            };
+                                            if let Err(db_err) = self.db.enqueue_status_update(
+                                                StatusUpdate::Completed(media.id),
+                                            ) {
+                                                self.publisher.publish(AppEvent::Error {
+                                                    file_id: None,
+                                                    fatal: true,
+                                                    message: format!(
+                                                        "Fatal persistence error: {}",
+                                                        db_err
+                                                    ),
+                                                });
+                                                cancel.store(true, Ordering::Relaxed);
+                                            }
+                                            self.publisher.publish(AppEvent::FileProcessed {
+                                                file_id: media.id,
+                                                status: FileStatus::Completed,
+                                                bytes_written,
+                                            });
 
-                                let bytes_written = if media.size > 0 {
-                                    media.size as u64
-                                } else {
-                                    std::fs::metadata(&final_path).map(|m| m.len()).unwrap_or(0)
-                                };
-                                if let Err(db_err) = self
-                                    .db
-                                    .enqueue_status_update(StatusUpdate::Completed(media.id))
-                                {
-                                    self.publisher.publish(AppEvent::Error {
-                                        file_id: None,
-                                        fatal: true,
-                                        message: format!("Fatal persistence error: {}", db_err),
-                                    });
-                                    cancel.store(true, Ordering::Relaxed);
+                                            // Per-file sweep: ONLY if output was moved out of staging
+                                            if self.config.processing.output_mode
+                                                != OutputMode::InPlace
+                                            {
+                                                let staging_path =
+                                                    self.resolve_staging_path(&media);
+                                                if let Some(parent) = staging_path.parent() {
+                                                    if parent.exists()
+                                                        && !final_path.starts_with(parent)
+                                                    {
+                                                        let _ = fs::remove_dir_all(parent);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(move_err) => {
+                                        error!(
+                                            "Failed to finalize output for file {}: {}",
+                                            media.filename, move_err
+                                        );
+                                        crate::logger::log_restoration_event(&format!(
+                                            "ERROR: Failed to move {}: {}",
+                                            media.filename, move_err
+                                        ));
+
+                                        let err_final =
+                                            self.move_to_error_subdir(&target_path, &media);
+
+                                        if let Err(db_err) = self.db.enqueue_status_update(
+                                            StatusUpdate::Error(media.id, move_err.to_string()),
+                                        ) {
+                                            self.publisher.publish(AppEvent::Error {
+                                                file_id: None,
+                                                fatal: true,
+                                                message: format!(
+                                                    "Fatal persistence error: {}",
+                                                    db_err
+                                                ),
+                                            });
+                                            cancel.store(true, Ordering::Relaxed);
+                                        }
+                                        self.publisher.publish(AppEvent::Error {
+                                            file_id: Some(media.id),
+                                            fatal: false,
+                                            message: format!(
+                                                "{}: {}",
+                                                err_final.display(),
+                                                move_err
+                                            ),
+                                        });
+                                        self.publisher.publish(AppEvent::FileProcessed {
+                                            file_id: media.id,
+                                            status: FileStatus::Error,
+                                            bytes_written: 0,
+                                        });
+
+                                        // Preserve staging if move to error failed or still inside staging
+                                        if self.config.processing.output_mode != OutputMode::InPlace
+                                        {
+                                            let staging_path = self.resolve_staging_path(&media);
+                                            if let Some(parent) = staging_path.parent() {
+                                                if parent.exists() && !err_final.starts_with(parent)
+                                                {
+                                                    let _ = fs::remove_dir_all(parent);
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                                self.publisher.publish(AppEvent::FileProcessed {
-                                    file_id: media.id,
-                                    status: FileStatus::Completed,
-                                    bytes_written,
-                                });
                             }
                             Err(e) => {
                                 error!(
@@ -364,15 +501,15 @@ impl<'a> Processor<'a> {
                                     status: FileStatus::Error,
                                     bytes_written: 0,
                                 });
-                            }
-                        }
 
-                        // Per-file sweep
-                        if self.config.processing.output_mode != OutputMode::InPlace {
-                            let staging_path = self.resolve_staging_path(&media);
-                            if let Some(parent) = staging_path.parent() {
-                                if parent.exists() {
-                                    let _ = fs::remove_dir_all(parent);
+                                // Preserve staging if file still in staging
+                                if self.config.processing.output_mode != OutputMode::InPlace {
+                                    let staging_path = self.resolve_staging_path(&media);
+                                    if let Some(parent) = staging_path.parent() {
+                                        if parent.exists() && !final_path.starts_with(parent) {
+                                            let _ = fs::remove_dir_all(parent);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -391,6 +528,15 @@ impl<'a> Processor<'a> {
                     Ok(files) => files,
                     Err(e) => {
                         error!("Failed to load ready media batch: {}", e);
+                        self.publisher.publish(AppEvent::Error {
+                            file_id: None,
+                            fatal: true,
+                            message: format!(
+                                "Failed to load ready media batch from database: {}",
+                                e
+                            ),
+                        });
+                        cancel.store(true, Ordering::Relaxed);
                         break;
                     }
                 };
@@ -404,6 +550,12 @@ impl<'a> Processor<'a> {
                 let ids: Vec<FileId> = ready_files.iter().map(|m| m.id).collect();
                 if let Err(e) = self.db.try_mark_batch_processing(&ids) {
                     error!("Failed to mark batch processing: {}", e);
+                    self.publisher.publish(AppEvent::Error {
+                        file_id: None,
+                        fatal: true,
+                        message: format!("Failed to mark batch processing in database: {}", e),
+                    });
+                    cancel.store(true, Ordering::Relaxed);
                     break;
                 }
 
@@ -461,195 +613,248 @@ impl<'a> Processor<'a> {
                         break;
                     }
 
-                    let file_result = fs::File::open(&archive_path);
-                    if let Ok(file) = file_result {
-                        let buffered = std::io::BufReader::with_capacity(256 * 1024, file);
-                        if let Ok(mut zip) = zip::ZipArchive::new(buffered) {
-                            let name_to_index = {
-                                let cache = self
-                                    .zip_json_index_cache
-                                    .lock()
-                                    .unwrap_or_else(|e| e.into_inner());
-                                cache.get(&archive_path).cloned()
-                            };
-
-                            let name_to_index = match name_to_index {
-                                Some(m) => m,
-                                None => {
-                                    let m: HashMap<String, usize> = (0..zip.len())
-                                        .filter_map(|idx| {
-                                            zip.by_index(idx)
-                                                .ok()
-                                                .map(|f| (f.name().to_string(), idx))
-                                        })
-                                        .collect();
-                                    let mut cache = self
-                                        .zip_json_index_cache
-                                        .lock()
-                                        .unwrap_or_else(|e| e.into_inner());
-                                    cache.insert(archive_path.clone(), m.clone());
-                                    m
+                    let file = match fs::File::open(&archive_path) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            error!(
+                                "Failed to open zip archive {}: {}",
+                                archive_path.display(),
+                                e
+                            );
+                            for media in &files {
+                                let err_msg = format!(
+                                    "Failed to open zip archive {}: {}",
+                                    archive_path.display(),
+                                    e
+                                );
+                                if let Err(db_err) = self.db.enqueue_status_update(
+                                    StatusUpdate::Error(media.id, err_msg.clone()),
+                                ) {
+                                    self.publisher.publish(AppEvent::Error {
+                                        file_id: None,
+                                        fatal: true,
+                                        message: format!("Fatal persistence error: {}", db_err),
+                                    });
+                                    cancel.store(true, Ordering::Relaxed);
                                 }
-                            };
+                                self.publisher.publish(AppEvent::Error {
+                                    file_id: Some(media.id),
+                                    fatal: false,
+                                    message: err_msg,
+                                });
+                                self.publisher.publish(AppEvent::FileProcessed {
+                                    file_id: media.id,
+                                    status: FileStatus::Error,
+                                    bytes_written: 0,
+                                });
+                            }
+                            continue;
+                        }
+                    };
 
-                            for media in files.iter() {
-                                if cancel.load(Ordering::Relaxed) {
-                                    break;
+                    let buffered = std::io::BufReader::with_capacity(256 * 1024, file);
+                    let mut zip = match zip::ZipArchive::new(buffered) {
+                        Ok(z) => z,
+                        Err(e) => {
+                            error!(
+                                "Failed to read zip archive {}: {}",
+                                archive_path.display(),
+                                e
+                            );
+                            for media in &files {
+                                let err_msg = format!(
+                                    "Corrupt or unreadable zip archive {}: {}",
+                                    archive_path.display(),
+                                    e
+                                );
+                                if let Err(db_err) = self.db.enqueue_status_update(
+                                    StatusUpdate::Error(media.id, err_msg.clone()),
+                                ) {
+                                    self.publisher.publish(AppEvent::Error {
+                                        file_id: None,
+                                        fatal: true,
+                                        message: format!("Fatal persistence error: {}", db_err),
+                                    });
+                                    cancel.store(true, Ordering::Relaxed);
+                                }
+                                self.publisher.publish(AppEvent::Error {
+                                    file_id: Some(media.id),
+                                    fatal: false,
+                                    message: err_msg,
+                                });
+                                self.publisher.publish(AppEvent::FileProcessed {
+                                    file_id: media.id,
+                                    status: FileStatus::Error,
+                                    bytes_written: 0,
+                                });
+                            }
+                            continue;
+                        }
+                    };
+                    let name_to_index = {
+                        let cache = self
+                            .zip_json_index_cache
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        cache.get(&archive_path).cloned()
+                    };
+
+                    let name_to_index = match name_to_index {
+                        Some(m) => m,
+                        None => {
+                            let m: HashMap<String, usize> = (0..zip.len())
+                                .filter_map(|idx| {
+                                    zip.by_index(idx).ok().map(|f| (f.name().to_string(), idx))
+                                })
+                                .collect();
+                            let mut cache = self
+                                .zip_json_index_cache
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner());
+                            cache.insert(archive_path.clone(), m.clone());
+                            m
+                        }
+                    };
+
+                    for media in files.iter() {
+                        if cancel.load(Ordering::Relaxed) {
+                            break;
+                        }
+
+                        let dest = self.resolve_staging_path(media);
+
+                        if let FilePath::Zip { internal, .. } = &media.path {
+                            let extract_res = (|| -> Result<u64, AppError> {
+                                let idx = *name_to_index.get(internal).ok_or_else(|| {
+                                    AppError::Io(std::io::Error::other(format!(
+                                        "Zip entry not found: {}",
+                                        internal
+                                    )))
+                                })?;
+
+                                let mut zip_file = zip.by_index(idx)?;
+
+                                if let Some(p) = dest.parent() {
+                                    let _ = fs::create_dir_all(p);
+                                }
+                                let mut file_name =
+                                    dest.file_name().unwrap_or_default().to_os_string();
+                                file_name.push(".partial");
+                                let temp_dest = dest.with_file_name(file_name);
+
+                                let raw_file =
+                                    fs::File::create(&temp_dest).map_err(AppError::Io)?;
+                                let mut out_file =
+                                    std::io::BufWriter::with_capacity(64 * 1024, raw_file);
+                                use std::io::{Read, Write};
+                                const MAX_SAFE_FILE_SIZE: u64 = 20_000_000_000;
+                                let mut bounded_reader =
+                                    zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
+                                let size = std::io::copy(&mut bounded_reader, &mut out_file)
+                                    .map_err(|e| {
+                                        let _ = fs::remove_file(&temp_dest);
+                                        AppError::Io(e)
+                                    })?;
+                                out_file.flush().map_err(|e| {
+                                    let _ = fs::remove_file(&temp_dest);
+                                    AppError::Io(e)
+                                })?;
+                                drop(out_file);
+                                drop(zip_file);
+
+                                if size > MAX_SAFE_FILE_SIZE {
+                                    let _ = fs::remove_file(&temp_dest);
+                                    return Err(AppError::SecurityThreat(
+                                        "Extracted ZIP entry exceeded maximum safe size threshold"
+                                            .into(),
+                                    ));
                                 }
 
-                                let dest = self.resolve_staging_path(media);
+                                fs::rename(&temp_dest, &dest).map_err(|e| {
+                                    let _ = fs::remove_file(&temp_dest);
+                                    AppError::Io(e)
+                                })?;
 
-                                if let FilePath::Zip { internal, .. } = &media.path {
-                                    let extract_res = (|| -> Result<u64, AppError> {
-                                        let idx =
-                                            *name_to_index.get(internal).ok_or_else(|| {
-                                                AppError::Io(std::io::Error::other(format!(
-                                                    "Zip entry not found: {}",
-                                                    internal
-                                                )))
-                                            })?;
-
-                                        let mut zip_file = zip.by_index(idx)?;
-
-                                        if let Some(p) = dest.parent() {
-                                            let _ = fs::create_dir_all(p);
-                                        }
-                                        let mut file_name =
-                                            dest.file_name().unwrap_or_default().to_os_string();
-                                        file_name.push(".partial");
-                                        let temp_dest = dest.with_file_name(file_name);
-
-                                        let raw_file =
-                                            fs::File::create(&temp_dest).map_err(AppError::Io)?;
-                                        let mut out_file =
-                                            std::io::BufWriter::with_capacity(64 * 1024, raw_file);
-                                        use std::io::{Read, Write};
-                                        const MAX_SAFE_FILE_SIZE: u64 = 20_000_000_000;
-                                        let mut bounded_reader =
-                                            zip_file.by_ref().take(MAX_SAFE_FILE_SIZE + 1);
-                                        let size =
-                                            std::io::copy(&mut bounded_reader, &mut out_file)
-                                                .map_err(|e| {
-                                                    let _ = fs::remove_file(&temp_dest);
-                                                    AppError::Io(e)
-                                                })?;
-                                        out_file.flush().map_err(|e| {
-                                            let _ = fs::remove_file(&temp_dest);
-                                            AppError::Io(e)
-                                        })?;
-                                        drop(out_file);
-                                        drop(zip_file);
-
-                                        if size > MAX_SAFE_FILE_SIZE {
-                                            let _ = fs::remove_file(&temp_dest);
-                                            return Err(AppError::SecurityThreat(
-                                                "Extracted ZIP entry exceeded maximum safe size threshold".into()
-                                            ));
-                                        }
-
-                                        fs::rename(&temp_dest, &dest).map_err(|e| {
-                                            let _ = fs::remove_file(&temp_dest);
-                                            AppError::Io(e)
-                                        })?;
-
-                                        // Sidecar JSON Staging Optimization:
-                                        if let Some(FilePath::Zip {
-                                            archive: json_archive,
-                                            internal: json_internal,
-                                        }) = &media.json_path
-                                        {
-                                            if json_archive == &archive_path {
-                                                if let Some(&json_idx) =
-                                                    name_to_index.get(json_internal)
-                                                {
-                                                    if let Ok(mut json_zf) = zip.by_index(json_idx)
+                                // Sidecar JSON Staging Optimization:
+                                if let Some(FilePath::Zip {
+                                    archive: json_archive,
+                                    internal: json_internal,
+                                }) = &media.json_path
+                                {
+                                    if json_archive == &archive_path {
+                                        if let Some(&json_idx) = name_to_index.get(json_internal) {
+                                            if let Ok(mut json_zf) = zip.by_index(json_idx) {
+                                                if let Some(p) = dest.parent() {
+                                                    let sidecar_path = p.join("sidecar.json");
+                                                    if let Ok(mut sidecar_file) =
+                                                        fs::File::create(&sidecar_path)
                                                     {
-                                                        if let Some(p) = dest.parent() {
-                                                            let sidecar_path =
-                                                                p.join("sidecar.json");
-                                                            if let Ok(mut sidecar_file) =
-                                                                fs::File::create(&sidecar_path)
-                                                            {
-                                                                let _ = std::io::copy(
-                                                                    &mut json_zf,
-                                                                    &mut sidecar_file,
-                                                                );
-                                                            }
-                                                        }
+                                                        let _ = std::io::copy(
+                                                            &mut json_zf,
+                                                            &mut sidecar_file,
+                                                        );
                                                     }
                                                 }
                                             }
                                         }
+                                    }
+                                }
 
-                                        Ok(size)
-                                    })();
+                                Ok(size)
+                            })();
 
-                                    match extract_res {
-                                        Ok(size) => {
-                                            let prev =
-                                                extracted_bytes.fetch_add(size, Ordering::Relaxed);
-                                            let current_cnt = completed_extracted
-                                                .fetch_add(1, Ordering::Relaxed)
-                                                + 1;
-                                            if (prev + size) / 500_000_000 > prev / 500_000_000 {
-                                                let avail = self
-                                                    .disk_checker
-                                                    .available_bytes(&self.output_dir);
-                                                if avail < 5_000_000_000 && avail != u64::MAX {
-                                                    self.publisher.publish(AppEvent::Error {
-                                                        file_id: None,
-                                                        fatal: true,
-                                                        message: "Disk full during extraction"
-                                                            .into(),
-                                                    });
-                                                    cancel.store(true, Ordering::Relaxed);
-                                                }
-                                            }
-                                            if current_cnt.is_multiple_of(25)
-                                                || current_cnt == grand_total
-                                            {
-                                                self.publisher.publish(AppEvent::ProgressStats {
-                                                    completed: current_cnt,
-                                                    total: grand_total,
-                                                    eta_seconds: None,
-                                                    speed_bps: size,
-                                                });
-                                            }
-                                            let _ = tx.send(((*media).clone(), dest));
-                                        }
-                                        Err(e) => {
-                                            let current_cnt = completed_extracted
-                                                .fetch_add(1, Ordering::Relaxed)
-                                                + 1;
-                                            if current_cnt.is_multiple_of(25)
-                                                || current_cnt == grand_total
-                                            {
-                                                self.publisher.publish(AppEvent::ProgressStats {
-                                                    completed: current_cnt,
-                                                    total: grand_total,
-                                                    eta_seconds: None,
-                                                    speed_bps: 0,
-                                                });
-                                            }
-                                            if let Err(db_err) = self.db.enqueue_status_update(
-                                                StatusUpdate::Error(media.id, e.to_string()),
-                                            ) {
-                                                self.publisher.publish(AppEvent::Error {
-                                                    file_id: None,
-                                                    fatal: true,
-                                                    message: format!(
-                                                        "Fatal persistence error: {}",
-                                                        db_err
-                                                    ),
-                                                });
-                                            }
-                                            self.publisher.publish(AppEvent::FileProcessed {
-                                                file_id: media.id,
-                                                status: FileStatus::Error,
-                                                bytes_written: 0,
+                            match extract_res {
+                                Ok(size) => {
+                                    let prev = extracted_bytes.fetch_add(size, Ordering::Relaxed);
+                                    let current_cnt =
+                                        completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
+                                    if (prev + size) / 500_000_000 > prev / 500_000_000 {
+                                        let avail =
+                                            self.disk_checker.available_bytes(&self.output_dir);
+                                        if avail < 5_000_000_000 && avail != u64::MAX {
+                                            self.publisher.publish(AppEvent::Error {
+                                                file_id: None,
+                                                fatal: true,
+                                                message: "Disk full during extraction".into(),
                                             });
+                                            cancel.store(true, Ordering::Relaxed);
                                         }
                                     }
+                                    if current_cnt % 25 == 0 || current_cnt == grand_total {
+                                        self.publisher.publish(AppEvent::ProgressStats {
+                                            completed: current_cnt,
+                                            total: grand_total,
+                                            eta_seconds: None,
+                                            speed_bps: size,
+                                        });
+                                    }
+                                    let _ = tx.send(((*media).clone(), dest));
+                                }
+                                Err(e) => {
+                                    let current_cnt =
+                                        completed_extracted.fetch_add(1, Ordering::Relaxed) + 1;
+                                    if current_cnt % 25 == 0 || current_cnt == grand_total {
+                                        self.publisher.publish(AppEvent::ProgressStats {
+                                            completed: current_cnt,
+                                            total: grand_total,
+                                            eta_seconds: None,
+                                            speed_bps: 0,
+                                        });
+                                    }
+                                    if let Err(db_err) = self.db.enqueue_status_update(
+                                        StatusUpdate::Error(media.id, e.to_string()),
+                                    ) {
+                                        self.publisher.publish(AppEvent::Error {
+                                            file_id: None,
+                                            fatal: true,
+                                            message: format!("Fatal persistence error: {}", db_err),
+                                        });
+                                    }
+                                    self.publisher.publish(AppEvent::FileProcessed {
+                                        file_id: media.id,
+                                        status: FileStatus::Error,
+                                        bytes_written: 0,
+                                    });
                                 }
                             }
                         }
@@ -792,31 +997,36 @@ impl<'a> Processor<'a> {
     }
 
     /// Moves a successfully processed file to the appropriate output subdirectory.
-    /// Returns the final path (or original path if move fails or mode is in-place).
+    /// Returns the final path or an AppError if the move fails.
     fn move_to_output_subdir(
         &self,
         current_path: &Path,
         media: &MediaFile,
         has_json_match: bool,
-    ) -> PathBuf {
+    ) -> Result<PathBuf, AppError> {
         if self.config.processing.output_mode == OutputMode::InPlace {
-            return current_path.to_path_buf();
+            return Ok(current_path.to_path_buf());
         }
 
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
-        let _ = fs::create_dir_all(&dest_dir);
+        fs::create_dir_all(&dest_dir).map_err(AppError::Io)?;
 
         let _lock = FILE_MOVE_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let dest_path = resolve_collision(&dest_dir, current_path);
 
         match fs::rename(current_path, &dest_path) {
-            Ok(_) => dest_path,
-            Err(_e) => match copy_buffered(current_path, &dest_path) {
+            Ok(_) => Ok(dest_path),
+            Err(rename_err) => match copy_buffered(current_path, &dest_path) {
                 Ok(_) => {
                     let _ = fs::remove_file(current_path);
-                    dest_path
+                    Ok(dest_path)
                 }
-                Err(_copy_err) => current_path.to_path_buf(),
+                Err(copy_err) => Err(AppError::Io(std::io::Error::other(format!(
+                    "Failed to move file to {}: rename failed ({}), copy failed ({})",
+                    dest_path.display(),
+                    rename_err,
+                    copy_err
+                )))),
             },
         }
     }
@@ -889,7 +1099,7 @@ impl<'a> Processor<'a> {
 
         let parsed = parse(json_content.as_bytes())?;
 
-        self.pool.execute(|engine| {
+        let exiftool_res = self.pool.execute(|engine| {
             engine.update_metadata(
                 target_path,
                 &parsed,
@@ -898,13 +1108,42 @@ impl<'a> Processor<'a> {
             )
         })?;
 
-        Ok(Some(parsed))
+        match exiftool_res {
+            crate::exiftool::ExifToolResult::Updated(_)
+            | crate::exiftool::ExifToolResult::Unchanged => Ok(Some(parsed)),
+            crate::exiftool::ExifToolResult::Failed(err_msg) => Err(AppError::Metadata(format!(
+                "ExifTool failed to write metadata: {}",
+                err_msg
+            ))),
+        }
     }
 
     /// Reads JSON sidecar content from file system or zip archive fallback.
+    /// Strictly enforces a 10 MB maximum size limit to prevent memory exhaustion.
     fn read_json_from_source(&self, json_path: &FilePath) -> Result<String, AppError> {
+        const MAX_JSON_SIZE: u64 = 10_000_000;
+
         match json_path {
-            FilePath::Real { abs, .. } => std::fs::read_to_string(abs).map_err(AppError::Io),
+            FilePath::Real { abs, .. } => {
+                let metadata = std::fs::metadata(abs).map_err(AppError::Io)?;
+                if metadata.len() > MAX_JSON_SIZE {
+                    return Err(AppError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "JSON file exceeds maximum safe size threshold (10MB)",
+                    )));
+                }
+                let file = std::fs::File::open(abs).map_err(AppError::Io)?;
+                let mut reader = std::io::Read::take(file, MAX_JSON_SIZE + 1);
+                let mut s = String::with_capacity(metadata.len().min(64 * 1024) as usize);
+                std::io::Read::read_to_string(&mut reader, &mut s).map_err(AppError::Io)?;
+                if s.len() as u64 > MAX_JSON_SIZE {
+                    return Err(AppError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "JSON file exceeds maximum safe size threshold (10MB)",
+                    )));
+                }
+                Ok(s)
+            }
             FilePath::Zip { archive, internal } => {
                 let idx = {
                     let cached_idx = {
@@ -952,21 +1191,32 @@ impl<'a> Processor<'a> {
                     }
                 };
 
-                if let Some(i) = idx {
-                    let file = std::fs::File::open(archive).map_err(AppError::Io)?;
-                    let mut zip = zip::ZipArchive::new(file)?;
-                    let mut zf = zip.by_index(i)?;
-                    let mut s = String::new();
-                    std::io::Read::read_to_string(&mut zf, &mut s).map_err(AppError::Io)?;
-                    Ok(s)
+                let file = std::fs::File::open(archive).map_err(AppError::Io)?;
+                let mut zip = zip::ZipArchive::new(file)?;
+                let mut zf = if let Some(i) = idx {
+                    zip.by_index(i)?
                 } else {
-                    let file = std::fs::File::open(archive).map_err(AppError::Io)?;
-                    let mut zip = zip::ZipArchive::new(file)?;
-                    let mut zf = zip.by_name(internal)?;
-                    let mut s = String::new();
-                    std::io::Read::read_to_string(&mut zf, &mut s).map_err(AppError::Io)?;
-                    Ok(s)
+                    zip.by_name(internal)?
+                };
+
+                let zf_size = zf.size();
+                if zf_size > MAX_JSON_SIZE {
+                    return Err(AppError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Zip JSON entry exceeds maximum safe size threshold (10MB)",
+                    )));
                 }
+
+                let mut reader = std::io::Read::take(&mut zf, MAX_JSON_SIZE + 1);
+                let mut s = String::with_capacity(zf_size.min(64 * 1024) as usize);
+                std::io::Read::read_to_string(&mut reader, &mut s).map_err(AppError::Io)?;
+                if s.len() as u64 > MAX_JSON_SIZE {
+                    return Err(AppError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Zip JSON entry exceeds maximum safe size threshold (10MB)",
+                    )));
+                }
+                Ok(s)
             }
         }
     }
@@ -1016,6 +1266,7 @@ fn copy_buffered(src: &Path, dst: &Path) -> std::io::Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::Broadcaster;
     use filetime::FileTime;
     use tempfile::tempdir;
 
@@ -1307,6 +1558,59 @@ mod tests {
         assert!(
             !logged_2.contains("-04:00"),
             "Localized offset must not be present when timezone_enabled=false"
+        );
+    }
+
+    #[test]
+    fn test_read_json_from_source_rejects_oversized_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let big_json = dir.path().join("oversized.json");
+        let f = fs::File::create(&big_json).unwrap();
+        f.set_len(11_000_000).unwrap();
+
+        let broadcaster = Broadcaster::new();
+        let db_path = dir.path().join("test_oversized.db");
+        let db = StateDatabase::open(&db_path).unwrap();
+        let config = Config::default();
+
+        let mock_bin = dir.path().join("mock_exiftool_size.bat");
+        #[cfg(windows)]
+        fs::write(
+            &mock_bin,
+            "@echo off\n:loop\nset /p line=\nif \"%line:~0,4%\"==\"-ver\" (echo 13.59\necho {ready})\nif \"%line:~0,8%\"==\"-execute\" echo {ready}\ngoto loop\n",
+        )
+        .unwrap();
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::write(
+                &mock_bin,
+                "#!/bin/sh\nwhile IFS= read -r line; do\n  if [ \"$line\" = \"-ver\" ]; then echo \"13.59\";\n  elif [ \"$line\" = \"-execute\" ]; then echo \"{ready}\"; fi\ndone\n",
+            )
+            .unwrap();
+            let mut perms = fs::metadata(&mock_bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&mock_bin, perms).unwrap();
+        }
+        let pool = ExifToolPool::new(mock_bin, 1).unwrap();
+
+        let proc = Processor::new(
+            &db,
+            &config,
+            &pool,
+            dir.path().to_path_buf(),
+            &broadcaster,
+            "test_run".to_string(),
+        );
+
+        let json_fp = FilePath::Real {
+            base_components: 0,
+            abs: big_json,
+        };
+        let res = proc.read_json_from_source(&json_fp);
+        assert!(
+            res.is_err(),
+            "Oversized JSON file (>10MB) must return error"
         );
     }
 }

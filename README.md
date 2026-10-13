@@ -114,8 +114,11 @@ cargo run --release -- --gui
 4. **Start Restoration:** Click **Start Processing** and monitor real-time progress and logs.
 
 > [!NOTE]
-> **Metadata Restoration Scope**  
-> **Takeout Restorer** is a metadata restoration tool designed to restore metadata separated by Google Takeout into `.json` sidecar files. The GPS restoration toggle controls whether location data from sidecars is re-embedded; it is not a privacy/EXIF scrubber and does not strip pre-existing GPS coordinates embedded by the camera at capture time.
+> **Metadata Restoration Scope & Timestamp Behavior**  
+> **Takeout Restorer** is a metadata restoration tool designed to restore metadata separated by Google Takeout into `.json` sidecar files.
+> - **EXIF Metadata:** Re-embeds original `DateTimeOriginal`, `CreateDate`, `ModifyDate`, `GPSCoordinates`, title, and description tags directly inside image and video containers via ExifTool.
+> - **GPS Toggle:** The GPS toggle controls whether location coordinates from `.json` sidecars are re-embedded. It does not alter or strip pre-existing GPS coordinates captured by camera hardware.
+> - **Filesystem Timestamps:** The tool sets filesystem Modification Time (`mtime`) and Access Time (`atime`) to match photo taken timestamps. On Windows (NTFS), file creation time (`birthtime`) is updated where supported; on POSIX systems (Linux/macOS), birthtime modification is governed by underlying filesystem and kernel API limitations.
 
 ### 2. Command Line Interface (CLI Mode)
 Run headlessly in server or automated batch environments:

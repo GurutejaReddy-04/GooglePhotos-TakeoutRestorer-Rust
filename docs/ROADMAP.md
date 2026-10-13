@@ -4,34 +4,50 @@ This document tracks verified architectural bottlenecks, platform-specific runti
 
 ---
 
-## 1. High-Priority Architectural & Throughput Optimizations (v0.2.0 Milestone - Delivered)
+---
 
-The following items represent confirmed throughput governors identified during deep concurrency and I/O profiling. These optimizations were implemented and verified in the **v0.2.0 release**, unlocking 2x–4x throughput gains:
+## 1. Delivered Reliability & Concurrency Optimizations (v0.2.0 Milestone)
 
-### 1.1 Remove Global `FILE_MOVE_MUTEX` Contention (Delivered in v0.2.0)
-- **Location:** [`crates/core/src/processor.rs:21, 768-771, 796-799`](../crates/core/src/processor.rs)
-- **Current Behavior:** A single static global mutex (`static FILE_MOVE_MUTEX: Mutex<()>`) is acquired by every worker thread whenever moving files to `Completed/`, `Unmatched/`, or `Errors/`. Inside this critical section, `resolve_collision()` executes multiple filesystem `exists()` stat calls.
-- **Impact:** All Rayon worker threads serialize on disk I/O when completing files, bottlenecking multi-threaded throughput on high-speed drives.
+The following architectural optimizations and safety invariants were delivered and verified in **v0.2.0**:
+- **ExifTool STDIN Batching:** Formats all per-file parameters into a single memory buffer with `-execute\n`, eliminating per-argument OS write syscalls.
+- **Job Object Process Lifecycle:** Attaches persistent ExifTool child processes to an OS Job Object (`JobObjectSupervisor`), guaranteeing zero orphan processes on Windows exit.
+- **Strict Process Registry:** Replaced unbounded PID vectors with a `HashSet<u32>` and explicit process unregistration upon worker drop, preventing PID reuse collateral terminations.
+- **Output Finalization Safety:** Verifies physical existence of destination files before enqueuing `Completed` status, preserving staging directories if movement fails.
+- **ExifTool Result Validation:** Inspects inner `ExifToolResult::Failed` responses, converting write failures into recoverable errors rather than false successes.
+- **Levenshtein Tie Rejection:** Rejects ambiguous matches where two or more candidates have the exact same edit distance.
+- **Auto-Heal Extension Correction:** Inspects 12-byte container magic bytes across all scanned media files, renaming misnamed containers (e.g. JPEG disguised as PNG).
+- **Stream-Bounded JSON Readers:** Enforces a strict 10 MB limit before and during sidecar reading, preventing memory exhaustion attacks or OOMs.
+
+---
+
+## 2. Future Architectural & Throughput Milestones (v0.3.0 Milestone)
+
+The following items represent confirmed throughput governors identified during concurrency profiling, scheduled for **v0.3.0**:
+
+### 2.1 Remove Global `FILE_MOVE_MUTEX` Contention (Planned for v0.3.0)
+- **Location:** [`crates/core/src/processor.rs`](../crates/core/src/processor.rs)
+- **Current Behavior:** A single static global mutex (`static FILE_MOVE_MUTEX: Mutex<()>`) is acquired by worker threads when resolving filename collisions. Inside this critical section, `resolve_collision()` executes multiple filesystem `exists()` stat calls.
+- **Impact:** Rayon worker threads serialize on disk I/O when completing files, bottlenecking multi-threaded throughput on high-speed NVMe drives.
 - **Planned Fix:** Replace the global mutex with lock-free atomic file destination handling (e.g. `fs::OpenOptions::new().create_new(true)`) or per-directory partition locks.
 
-### 1.2 Eliminate Sidecar JSON Disk I/O Roundtrip
-- **Location:** [`crates/core/src/processor.rs:550-558, 841-851, 380-386`](../crates/core/src/processor.rs)
+### 2.2 Eliminate Sidecar JSON Disk I/O Roundtrip (Planned for v0.3.0)
+- **Location:** [`crates/core/src/processor.rs`](../crates/core/src/processor.rs)
 - **Current Behavior:**
   1. The producer thread extracts matched sidecar JSON files to `.staging/<run_id>/<media_id>/sidecar.json` on disk.
   2. The consumer thread reads `sidecar.json` from disk with `fs::read_to_string()`.
   3. The consumer then deletes the per-file staging directory with `fs::remove_dir_all()`.
-- **Impact:** Every file triggers 1 directory creation, 1 JSON disk write, 1 JSON disk read, and 1 recursive directory deletion (4 filesystem operations per file, generating ~200,000 metadata operations on a 50,000 file library, causing severe NTFS MFT and filesystem lock contention).
+- **Impact:** Every file triggers directory creation, JSON disk write, JSON disk read, and directory deletion (4 filesystem operations per file, generating ~200,000 metadata operations on a 50,000 file library).
 - **Planned Fix:** Pass pre-extracted sidecar bytes in memory directly through the pipeline channel payload: `(MediaFile, PathBuf, Option<Vec<u8>>)`. Avoid creating disk directories for sidecars entirely.
 
-### 1.3 Separate SQLite Read/Write Connections
-- **Location:** [`crates/core/src/state_db.rs:224, 365, 487`](../crates/core/src/state_db.rs)
-- **Current Behavior:** `StateDatabase` wraps a single SQLite connection in `Arc<Mutex<Connection>>`. The background `writer_loop` holds this lock during 200-item batch transactions (`conn.lock()`), forcing reader queries and `try_mark_processing` in worker threads to wait.
-- **Impact:** Even though SQLite operates in WAL mode (where readers do not block writers at the database engine level), the single Rust mutex forces full single-threaded serialization in application code.
+### 2.3 Separate SQLite Read/Write Connections (Planned for v0.3.0)
+- **Location:** [`crates/core/src/state_db.rs`](../crates/core/src/state_db.rs)
+- **Current Behavior:** `StateDatabase` wraps a single SQLite connection in `Arc<Mutex<Connection>>`. The background `writer_loop` holds this lock during batch transactions, forcing reader queries and `try_mark_processing` in worker threads to wait.
+- **Impact:** Even though SQLite operates in WAL mode (where readers do not block writers at the database engine level), the single Rust mutex forces single-threaded serialization in application code.
 - **Planned Fix:** Maintain a dedicated write connection for `writer_loop` and a separate read-only connection pool for worker threads and UI queries.
 
 ---
 
-## 2. Secondary Performance Improvements
+## 3. Secondary Performance Improvements
 
 | Component | Location | Issue | Proposed Optimization |
 | :--- | :--- | :--- | :--- |

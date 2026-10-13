@@ -529,6 +529,7 @@ impl<'a> Matcher<'a> {
         );
 
         let mut min_distance = dynamic_threshold as usize + 1;
+        let mut tie_detected = false;
 
         for c in candidates.values() {
             let json_base = c.filename.to_lowercase();
@@ -548,13 +549,24 @@ impl<'a> Matcher<'a> {
             let dist = levenshtein::distance(media_base_lower.chars(), json_stem.chars());
             if dist < min_distance {
                 min_distance = dist;
+                tie_detected = false;
                 let conf = (100 - (dist * 10)) as u8;
                 best_fuzzy = Some(MatchCandidate {
                     json: c,
                     tier: 7,
                     confidence: conf,
                 });
+            } else if dist == min_distance && min_distance <= dynamic_threshold as usize {
+                tie_detected = true;
             }
+        }
+
+        if tie_detected {
+            debug!(
+                "Ambiguous fuzzy match rejected for media {}: multiple candidates share minimum distance {}",
+                media.filename, min_distance
+            );
+            return None;
         }
 
         if let Some(fuzzy) = best_fuzzy {
@@ -995,5 +1007,24 @@ mod tests {
             "IMG_2072(1).HEIC.supplemental-metadata.json"
         );
         assert_eq!(result.confidence, 100);
+    }
+
+    #[test]
+    fn test_tier_7_fuzzy_tie_rejection() {
+        // "photo_a.json" and "photo_b.json" both have edit distance 1 to "photo_c"
+        let json_pool = vec![
+            create_json("photo_a.jpg.json"),
+            create_json("photo_b.jpg.json"),
+        ];
+        let mut config = Config::default();
+        config.matching.levenshtein_threshold = 2;
+        let matcher = Matcher::new(&json_pool, &config);
+        let media = create_media(1, "photo_c.jpg", ".jpg");
+
+        let result = matcher.find_best_match(&media);
+        assert!(
+            result.is_none(),
+            "Ambiguous equidistant match must be rejected"
+        );
     }
 }

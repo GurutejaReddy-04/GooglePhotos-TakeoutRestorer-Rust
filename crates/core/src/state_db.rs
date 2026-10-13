@@ -9,6 +9,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::SystemTime;
+use tracing::warn;
 
 pub type FileId = i64;
 pub type JsonId = i64;
@@ -488,21 +489,29 @@ impl StateDatabase {
                             let mut local_success = false;
                             {
                                 if let Ok(mut stmt) = tx.prepare("UPDATE media_files SET status = ?1, error_message = ?2 WHERE id = ?3") {
+                                    let mut exec_ok = true;
                                     for item in &batch {
-                                        match item {
+                                        let res = match item {
                                             StatusUpdate::Completed(id) => {
-                                                let _ = stmt.execute(params![FileStatus::Completed as u8, rusqlite::types::Null, id]);
+                                                stmt.execute(params![FileStatus::Completed as u8, rusqlite::types::Null, id])
                                             }
                                             StatusUpdate::Error(id, msg) => {
-                                                let _ = stmt.execute(params![FileStatus::Error as u8, msg, id]);
+                                                stmt.execute(params![FileStatus::Error as u8, msg, id])
                                             }
                                             StatusUpdate::Skipped(id, msg) => {
-                                                let _ = stmt.execute(params![FileStatus::Skipped as u8, msg, id]);
+                                                stmt.execute(params![FileStatus::Skipped as u8, msg, id])
                                             }
-                                            _ => {}
+                                            _ => Ok(0),
+                                        };
+                                        if let Err(e) = res {
+                                            warn!("Failed executing status update in batch: {}", e);
+                                            exec_ok = false;
+                                            break;
                                         }
                                     }
-                                    local_success = true;
+                                    if exec_ok {
+                                        local_success = true;
+                                    }
                                 }
                             }
                             if local_success && tx.commit().is_ok() {

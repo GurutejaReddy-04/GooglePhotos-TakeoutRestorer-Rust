@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::parser::ParsedMetadata;
 use chrono::{DateTime, Utc};
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -22,11 +23,28 @@ use once_cell::sync::Lazy;
 static GLOBAL_JOB_SUPERVISOR: Lazy<Option<JobObjectSupervisor>> =
     Lazy::new(JobObjectSupervisor::new);
 
-static SPAWNED_PIDS: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+static SPAWNED_PIDS: Lazy<std::sync::Mutex<HashSet<u32>>> =
+    Lazy::new(|| std::sync::Mutex::new(HashSet::new()));
+
+pub fn register_pid(pid: u32) {
+    if let Ok(mut pids) = SPAWNED_PIDS.lock() {
+        pids.insert(pid);
+    }
+}
+
+pub fn unregister_pid(pid: u32) {
+    if let Ok(mut pids) = SPAWNED_PIDS.lock() {
+        pids.remove(&pid);
+    }
+}
 
 pub fn cleanup_all_processes() {
-    let pids = match SPAWNED_PIDS.lock() {
-        Ok(guard) => guard.clone(),
+    let pids: Vec<u32> = match SPAWNED_PIDS.lock() {
+        Ok(mut guard) => {
+            let list: Vec<u32> = guard.iter().copied().collect();
+            guard.clear();
+            list
+        }
         Err(_) => return,
     };
 
@@ -153,9 +171,7 @@ impl ExifToolEngine {
             supervisor.attach_child(&child);
         }
 
-        if let Ok(mut pids) = SPAWNED_PIDS.lock() {
-            pids.push(child.id());
-        }
+        register_pid(child.id());
 
         let stdin = child.stdin.take().unwrap();
         let stdout = child.stdout.take().unwrap();
@@ -415,6 +431,7 @@ fn format_fallback_timestamp(timestamp: i64, is_video: bool) -> String {
 
 impl Drop for ProcessState {
     fn drop(&mut self) {
+        let pid = self.child.id();
         let _ = writeln!(self.stdin, "-stay_open");
         let _ = writeln!(self.stdin, "False");
         let _ = self.stdin.flush();
@@ -433,7 +450,7 @@ impl Drop for ProcessState {
             #[cfg(windows)]
             {
                 let _ = std::process::Command::new("taskkill")
-                    .args(["/F", "/T", "/PID", &self.child.id().to_string()])
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
                     .creation_flags(CREATE_NO_WINDOW)
                     .output();
             }
@@ -443,6 +460,8 @@ impl Drop for ProcessState {
             }
             let _ = self.child.wait();
         }
+
+        unregister_pid(pid);
     }
 }
 
@@ -800,5 +819,20 @@ mod tests {
         let second_call = pool.execute(|_engine| Ok("recovered"));
         assert!(second_call.is_ok());
         assert_eq!(second_call.unwrap(), "recovered");
+    }
+
+    #[test]
+    fn test_pid_registration_and_unregistration() {
+        let test_pid = 999999;
+        register_pid(test_pid);
+        {
+            let guard = SPAWNED_PIDS.lock().unwrap();
+            assert!(guard.contains(&test_pid));
+        }
+        unregister_pid(test_pid);
+        {
+            let guard = SPAWNED_PIDS.lock().unwrap();
+            assert!(!guard.contains(&test_pid));
+        }
     }
 }

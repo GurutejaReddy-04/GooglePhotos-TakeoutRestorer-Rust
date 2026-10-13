@@ -59,6 +59,9 @@ pub enum AppError {
     #[error("Checksum mismatch for downloaded file")]
     ChecksumMismatch,
 
+    #[error("Metadata restoration error: {0}")]
+    Metadata(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 }
@@ -76,6 +79,7 @@ impl AppError {
                 | AppError::Timeout
                 | AppError::ExifToolCrashed
                 | AppError::TooManyCollisions
+                | AppError::Metadata(_)
         )
     }
 }

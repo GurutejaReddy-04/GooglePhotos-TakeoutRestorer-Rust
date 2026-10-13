@@ -33,13 +33,24 @@ pub fn scan_inputs(
 
         if input.is_dir() {
             let base_components = input.components().count();
-            for entry in walkdir::WalkDir::new(input)
-                .into_iter()
-                .filter_map(|e| e.ok())
-            {
+            for entry in walkdir::WalkDir::new(input) {
                 if cancel.load(Ordering::Relaxed) {
                     break;
                 }
+
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(err) => {
+                        let path_str = err
+                            .path()
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_else(|| "unknown path".to_string());
+                        publisher.publish(crate::events::AppEvent::Warning {
+                            message: format!("Scanner warning accessing {}: {}", path_str, err),
+                        });
+                        continue;
+                    }
+                };
 
                 if entry.file_type().is_dir() {
                     continue;
@@ -189,15 +200,29 @@ fn process_file<F>(
 where
     F: FnOnce() -> FilePath,
 {
-    let ext = path
+    let mut ext = path
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| format!(".{}", e.to_lowercase()))
         .unwrap_or_default();
 
-    let is_media = config.supported_image_extensions.contains(&ext)
+    let mut is_media = config.supported_image_extensions.contains(&ext)
         || config.supported_video_extensions.contains(&ext);
     let is_json = ext == ".json";
+
+    if !is_media && !is_json {
+        if let Some(true_ext) = crate::auto_heal::detect_magic_bytes(path) {
+            let true_ext_str = true_ext.to_string();
+            if config.supported_image_extensions.contains(&true_ext_str)
+                || config.supported_video_extensions.contains(&true_ext_str)
+            {
+                is_media = true;
+                if ext.is_empty() {
+                    ext = true_ext_str;
+                }
+            }
+        }
+    }
 
     if is_media || is_json {
         let size = path.metadata().map(|m| m.len() as i64).unwrap_or(0);

@@ -31,9 +31,9 @@ process_state.stdin.flush()?;
 
 ExifTool's persistent `-stay_open` IPC protocol strictly requires **`\n` (LF)** line terminators between argument tokens, `-execute`, and `-stay_open` commands.
 
-- **Issue:** Rust's standard `writeln!` macro appends platform-native line endings (`\r\n` on Windows).
-- **Rule:** When modifying STDIN handling in `exiftool.rs`, never use `writeln!`. Always use explicit `\n` line endings (e.g., `write_all(b"-ver\n-execute\n")` or `write!(stdin, "{}\n", arg)`).
-- **Impact:** Sending `\r\n` over STDIN causes ExifTool (and test fixture mock binaries) on Windows to parse `\r` as part of the command string, leading to process warmup crashes (`WARMUP DISCONNECTED`).
+- **Nuance:** Rust's standard formatting macros (`writeln!`, `println!`) always emit a literal `\n` character on all platforms, not CRLF.
+- **Protocol Quirk:** When communicating with ExifTool on Windows, any trailing carriage returns (`\r`) embedded within argument strings, file paths, or text metadata are parsed by ExifTool as literal characters rather than line breaks, causing warmup timeouts or command rejections (`WARMUP DISCONNECTED`).
+- **Implementation Rule:** In `exiftool.rs`, arguments are sanitized via `arg.replace(['\r', '\n'], " ")` and written into a single buffered string terminating with explicit `\n` and `-execute\n`. This guarantees that no stray `\r` characters ever reach the child process's STDIN pipe.
 
 ---
 
