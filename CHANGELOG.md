@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-14
+
+### Fixed
+- **Brand Name & Trademark Alignment**: Renamed product to **Takeout Restorer** across desktop GUI, CLI descriptions, and package configurations, and added legal trademark disclaimer for Google Photos and Google Takeout.
+- **Custom NSIS Installer Branding**: Configured custom application `.ico` icon and dedicated branding header/sidebar bitmaps for Windows installer setup wizards, replacing the default NSIS logo.
+- **Multi-Resolution Linux App Icons**: Added multi-resolution PNG icons (`32x32`, `64x64`, `128x128`, `256x256`, `512x512`) for FreeDesktop standard compliance.
+- **Data Integrity & Move Finalization**: Ensured staging file moves return `Result<PathBuf, AppError>` and verify final destination validity before recording a file as Completed; staging files are preserved upon filesystem failures.
+- **ExifTool Error Propagation**: Fixed an issue where ExifTool write failures (`ExifToolResult::Failed`) were swallowed, now correctly updating state and surfacing error diagnostics.
+- **MSRV Compatibility**: Retained full compatibility down to Rust 1.75+ by removing dependencies on Rust 1.83+ APIs.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

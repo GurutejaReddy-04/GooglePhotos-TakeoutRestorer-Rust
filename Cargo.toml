@@ -9,9 +9,9 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
-authors = ["Guruteja Reddy Nallachi <159574479+GurutejaReddy-04@users.noreply.github.com>"]
+authors = ["Guruteja Reddy N <159574479+GurutejaReddy-04@users.noreply.github.com>"]
 license = "MIT"
 
 [workspace.dependencies]
