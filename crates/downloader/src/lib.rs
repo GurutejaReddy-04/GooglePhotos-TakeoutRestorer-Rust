@@ -187,15 +187,19 @@ impl ExifToolManager {
                 None => continue,
             };
 
-            let rel_path = match enclosed_name.strip_prefix(
-                enclosed_name
-                    .components()
-                    .next()
-                    .map(|c| c.as_os_str())
-                    .unwrap_or_default(),
-            ) {
-                Ok(p) => p.to_owned(),
-                Err(_) => enclosed_name.clone(),
+            let rel_path = if enclosed_name.components().count() > 1 {
+                match enclosed_name.strip_prefix(
+                    enclosed_name
+                        .components()
+                        .next()
+                        .map(|c| c.as_os_str())
+                        .unwrap_or_default(),
+                ) {
+                    Ok(p) => p.to_owned(),
+                    Err(_) => enclosed_name.clone(),
+                }
+            } else {
+                enclosed_name.clone()
             };
 
             if rel_path.as_os_str().is_empty() {
