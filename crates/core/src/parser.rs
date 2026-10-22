@@ -45,7 +45,8 @@ struct TimestampData {
 struct GeoData {
     latitude: f64,
     longitude: f64,
-    altitude: f64,
+    #[serde(default)]
+    altitude: Option<f64>,
 }
 
 pub fn parse(bytes: &[u8]) -> Result<ParsedMetadata, AppError> {
@@ -71,7 +72,7 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedMetadata, AppError> {
     let gps = geo.map(|g| GpsCoordinate {
         latitude: g.latitude,
         longitude: g.longitude,
-        altitude: Some(g.altitude),
+        altitude: g.altitude,
     });
 
     Ok(ParsedMetadata {

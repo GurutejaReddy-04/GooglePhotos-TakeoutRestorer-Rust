@@ -200,7 +200,8 @@ impl<'a> Processor<'a> {
         // SEC-002: Pre-extraction validation
         let pending_size = self.db.get_total_pending_size().unwrap_or(0);
         let available = self.disk_checker.available_bytes(&self.output_dir);
-        let safe_buffer = 5_000_000_000; // 5 GB
+        // Scale buffer dynamically: min(250MB, 10% of pending size), with a 50MB floor
+        let safe_buffer = std::cmp::min(250_000_000, pending_size / 10).max(50_000_000);
         if pending_size + safe_buffer > available && available != u64::MAX {
             self.publisher.publish(AppEvent::Error {
                 file_id: None,
@@ -311,11 +312,6 @@ impl<'a> Processor<'a> {
                                     return;
                                 }
 
-                                // Set filesystem timestamps to the photo taken time
-                                if let Some(meta) = &parsed_meta {
-                                    self.set_file_timestamps(&target_path, meta.taken_timestamp);
-                                }
-
                                 // Move file to appropriate output subdirectory
                                 match self.move_to_output_subdir(
                                     &target_path,
@@ -323,6 +319,13 @@ impl<'a> Processor<'a> {
                                     parsed_meta.is_some(),
                                 ) {
                                     Ok(final_path) => {
+                                        // Set filesystem timestamps to the photo taken time on the final destination file
+                                        if let Some(meta) = &parsed_meta {
+                                            self.set_file_timestamps(
+                                                &final_path,
+                                                meta.taken_timestamp,
+                                            );
+                                        }
                                         if !final_path.is_file() {
                                             let err_msg = format!(
                                                 "Final output verification failed: missing at {}",
@@ -1005,7 +1008,9 @@ impl<'a> Processor<'a> {
         has_json_match: bool,
     ) -> Result<PathBuf, AppError> {
         if self.config.processing.output_mode == OutputMode::InPlace {
-            return Ok(current_path.to_path_buf());
+            if let FilePath::Real { .. } = media.path {
+                return Ok(current_path.to_path_buf());
+            }
         }
 
         let dest_dir = self.resolve_final_output_path(media, has_json_match);
@@ -1034,7 +1039,9 @@ impl<'a> Processor<'a> {
     /// Moves a file that failed processing to the Errors subdirectory.
     fn move_to_error_subdir(&self, current_path: &Path, media: &MediaFile) -> PathBuf {
         if self.config.processing.output_mode == OutputMode::InPlace {
-            return current_path.to_path_buf();
+            if let FilePath::Real { .. } = media.path {
+                return current_path.to_path_buf();
+            }
         }
 
         let dest_dir = self.resolve_error_output_path(media);
@@ -1245,7 +1252,16 @@ fn resolve_collision(dest_dir: &Path, current_path: &Path) -> PathBuf {
     let mut counter = 1;
     while dest_path.exists() {
         if counter > 10000 {
-            break;
+            let unique_suffix = format!(
+                "{}_dup_{}{}",
+                stem,
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0),
+                ext
+            );
+            return dest_dir.join(unique_suffix);
         }
         let new_name = format!("{}({}){}", stem, counter, ext);
         dest_path = dest_dir.join(new_name);
@@ -1260,6 +1276,13 @@ fn copy_buffered(src: &Path, dst: &Path) -> std::io::Result<u64> {
     let mut writer = std::io::BufWriter::with_capacity(1_048_576, std::fs::File::create(dst)?);
     let size = std::io::copy(&mut reader, &mut writer)?;
     writer.flush()?;
+    drop(writer);
+    drop(reader);
+    if let Ok(src_meta) = fs::metadata(src) {
+        if let Ok(modified) = src_meta.modified() {
+            let _ = filetime::set_file_mtime(dst, filetime::FileTime::from_system_time(modified));
+        }
+    }
     Ok(size)
 }
 

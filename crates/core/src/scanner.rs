@@ -118,7 +118,7 @@ pub fn scan_inputs(
                 let compressed = file_in_zip.compressed_size();
                 if !is_json && uncompressed > 10_000_000 && compressed > 0 {
                     let ratio = uncompressed as f64 / compressed as f64;
-                    if ratio > 10.0 {
+                    if ratio > 100.0 {
                         return Err(AppError::SecurityThreat(format!(
                             "Zip Bomb detected in archive: {}",
                             input.display()

@@ -527,6 +527,76 @@ impl StateDatabase {
                 }
 
                 if !success {
+                    // Fall back to individual statement execution so one malformed row
+                    // does not poison the entire batch and break the database.
+                    if let Ok(lock) = conn.lock() {
+                        let mut failed_items = Vec::new();
+                        for item in &batch {
+                            let res = match item {
+                                StatusUpdate::Completed(id) => lock.execute(
+                                    "UPDATE media_files SET status = ?1, error_message = ?2 WHERE id = ?3",
+                                    params![FileStatus::Completed as u8, rusqlite::types::Null, id],
+                                ),
+                                StatusUpdate::Error(id, msg) => lock.execute(
+                                    "UPDATE media_files SET status = ?1, error_message = ?2 WHERE id = ?3",
+                                    params![FileStatus::Error as u8, msg, id],
+                                ),
+                                StatusUpdate::Skipped(id, msg) => lock.execute(
+                                    "UPDATE media_files SET status = ?1, error_message = ?2 WHERE id = ?3",
+                                    params![FileStatus::Skipped as u8, msg, id],
+                                ),
+                                _ => Ok(0),
+                            };
+                            if let Err(e) = res {
+                                warn!("Individual update failed for {:?}: {}", item, e);
+                                match item {
+                                    StatusUpdate::Completed(id) => {
+                                        failed_items.push(RecoverableUpdate {
+                                            id: *id,
+                                            status: FileStatus::Completed,
+                                            error_message: None,
+                                        })
+                                    }
+                                    StatusUpdate::Error(id, msg) => {
+                                        failed_items.push(RecoverableUpdate {
+                                            id: *id,
+                                            status: FileStatus::Error,
+                                            error_message: Some(msg.clone()),
+                                        })
+                                    }
+                                    StatusUpdate::Skipped(id, msg) => {
+                                        failed_items.push(RecoverableUpdate {
+                                            id: *id,
+                                            status: FileStatus::Skipped,
+                                            error_message: Some(msg.clone()),
+                                        })
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        if !failed_items.is_empty() {
+                            let recovery_path = db_dir.join("failed_batch.json");
+                            if let Ok(mut f) = std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(&recovery_path)
+                            {
+                                use std::io::Write;
+                                for item in &failed_items {
+                                    if let Ok(json) = serde_json::to_string(item) {
+                                        let _ = writeln!(f, "{}", json);
+                                    }
+                                }
+                            }
+                        }
+
+                        success = true;
+                    }
+                }
+
+                if !success {
                     tracing::error!(
                         "Persistent DB failure. Halting state writer to prevent data loss."
                     );

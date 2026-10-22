@@ -197,7 +197,7 @@ pub struct ProcessingConfig {
 impl Default for ProcessingConfig {
     fn default() -> Self {
         Self {
-            max_workers: 4,
+            max_workers: 0,
             gps_enabled: true,
             timezone_enabled: true,
             unmatched_enabled: true,

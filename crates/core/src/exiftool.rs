@@ -307,9 +307,7 @@ impl ExifToolEngine {
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                     error!("ExifTool read timeout");
                     *process_guard = None;
-                    return Err(AppError::ExifToolLaunchFailed(
-                        "ExifTool timeout".to_string(),
-                    ));
+                    return Err(AppError::Timeout);
                 }
                 Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                     error!("ExifTool process disconnected");

@@ -92,20 +92,25 @@ impl EventPublisher for Broadcaster {
     fn publish(&self, event: AppEvent) {
         let mut senders = self.senders.write().unwrap_or_else(|e| e.into_inner());
 
+        let is_terminal = matches!(
+            event,
+            AppEvent::RunCompleted { .. }
+                | AppEvent::ScanCompleted { .. }
+                | AppEvent::Error { fatal: true, .. }
+        );
+
         senders.retain(|tx| {
-            match tx.try_send(event.clone()) {
-                Ok(_) => true,
-                Err(mpsc::TrySendError::Full(_)) => {
-                    // Slow subscriber policy: Disconnect if the 10,000 event buffer is full.
-                    // This prevents backpressure from halting the Core Engine.
-                    tracing::warn!(
-                        "Slow subscriber detected (queue full). Disconnecting subscriber."
-                    );
-                    false
-                }
-                Err(mpsc::TrySendError::Disconnected(_)) => {
-                    // Normal disconnect
-                    false
+            if is_terminal {
+                tx.send(event.clone()).is_ok()
+            } else {
+                match tx.try_send(event.clone()) {
+                    Ok(_) => true,
+                    Err(mpsc::TrySendError::Full(_)) => {
+                        // Slow subscriber: drop transient event to prevent backpressure,
+                        // but retain subscriber so telemetry bus stays connected.
+                        true
+                    }
+                    Err(mpsc::TrySendError::Disconnected(_)) => false,
                 }
             }
         });
