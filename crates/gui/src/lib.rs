@@ -62,7 +62,7 @@ impl GuiRunner {
             state.width.max(980.0),
             state.height.max(640.0),
         ));
-        if state.x >= 0.0 && state.y >= 0.0 && state.x < 3000.0 && state.y < 2000.0 {
+        if state.x != 0.0 || state.y != 0.0 {
             ui.window()
                 .set_position(slint::LogicalPosition::new(state.x, state.y));
         }
@@ -194,9 +194,7 @@ impl GuiRunner {
         ui.on_select_folders(move || {
             if let Some(ui) = ui_handle_folder.upgrade() {
                 ui.set_import_error("".into());
-                let folders = FileDialog::new()
-                    .pick_folders()
-                    .or_else(|| FileDialog::new().pick_folder().map(|f| vec![f]));
+                let folders = FileDialog::new().pick_folders();
                 if let Some(folders) = folders {
                     let current = ui.get_inputs().iter().collect::<Vec<_>>();
                     let mut input_paths = current.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -442,6 +440,11 @@ impl GuiRunner {
                     return;
                 }
 
+                let cand = std::path::PathBuf::from(&dest_str).join("Google Photos Restored");
+                if cand.is_dir() {
+                    dest_str = cand.to_string_lossy().to_string();
+                }
+
                 #[cfg(target_os = "windows")]
                 let open_result = std::process::Command::new("explorer")
                     .arg(dest_str.replace('/', "\\"))
@@ -494,9 +497,17 @@ impl GuiRunner {
                 }
 
                 let log_file = if !dest_str.is_empty() {
-                    std::path::PathBuf::from(dest_str)
+                    let cand = std::path::PathBuf::from(&dest_str)
+                        .join("Google Photos Restored")
                         .join("Logs")
-                        .join("restoration.log")
+                        .join("restoration.log");
+                    if cand.exists() {
+                        cand
+                    } else {
+                        std::path::PathBuf::from(&dest_str)
+                            .join("Logs")
+                            .join("restoration.log")
+                    }
                 } else {
                     std::path::PathBuf::from("Logs").join("restoration.log")
                 };
@@ -532,17 +543,17 @@ impl GuiRunner {
         ui.window()
             .on_close_requested(move || -> slint::CloseRequestResponse {
                 if let Some(ui) = ui_handle_close.upgrade() {
-                    let size = ui.window().size();
-                    let pos = ui.window().position();
-                    let width = size.width as f32 / ui.window().scale_factor();
-                    let height = size.height as f32 / ui.window().scale_factor();
-
+                    let is_max = ui.window().is_maximized();
                     let mut state = WindowState::load();
-                    state.width = width;
-                    state.height = height;
-                    state.x = pos.x as f32 / ui.window().scale_factor();
-                    state.y = pos.y as f32 / ui.window().scale_factor();
-                    state.is_maximized = ui.window().is_maximized();
+                    state.is_maximized = is_max;
+                    if !is_max {
+                        let size = ui.window().size();
+                        let pos = ui.window().position();
+                        state.width = size.width as f32 / ui.window().scale_factor();
+                        state.height = size.height as f32 / ui.window().scale_factor();
+                        state.x = pos.x as f32 / ui.window().scale_factor();
+                        state.y = pos.y as f32 / ui.window().scale_factor();
+                    }
                     state.save();
 
                     let _ = dispatcher_close.dispatch(UiCommand::Shutdown);
@@ -555,9 +566,10 @@ impl GuiRunner {
         let snapshot_rx = self.snapshot_rx.clone();
         let ui_handle_clone = ui_handle.clone();
 
-        thread::spawn(move || loop {
-            let snapshot = snapshot_rx.wait_changed();
-            update_ui_from_snapshot(&ui_handle_clone, &snapshot);
+        thread::spawn(move || {
+            while let Some(snapshot) = snapshot_rx.wait_changed() {
+                update_ui_from_snapshot(&ui_handle_clone, &snapshot);
+            }
         });
     }
 }

@@ -84,6 +84,12 @@ pub fn update_ui_from_snapshot(ui_handle: &Weak<MainWindow>, snapshot: &CoreProc
             }
             ui.set_past_runs(ModelRc::from(Rc::new(VecModel::from(past_runs))));
 
+            let mut logs_vec = Vec::new();
+            for log in &snapshot_clone.activity_logs {
+                logs_vec.push(log.clone().into());
+            }
+            ui.set_activity_logs(ModelRc::from(Rc::new(VecModel::from(logs_vec))));
+
             // Keep settings logic since it's used elsewhere
             let dest_val = match settings.destination_validation.clone() {
                 DestinationValidation::NotSet => crate::DestinationValidation {

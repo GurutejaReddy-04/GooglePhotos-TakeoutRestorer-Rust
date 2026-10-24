@@ -96,6 +96,7 @@ pub struct ProcessingSnapshot {
     pub recent_runs: Vec<RecentRun>,
     pub settings: SettingsSnapshot,
     pub results: Vec<FileResult>,
+    pub activity_logs: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -135,6 +136,7 @@ impl Default for ProcessingSnapshot {
             recent_runs: Vec::new(),
             settings: SettingsSnapshot::default(),
             results: Vec::new(),
+            activity_logs: Vec::new(),
         }
     }
 }
@@ -178,6 +180,7 @@ pub struct ProcessingViewModelBuilder {
     pub raw_results: Vec<FileResult>,
     pub search_query: String,
     pub status_filter: String,
+    pub activity_logs: Vec<String>,
 }
 
 impl ProcessingViewModelBuilder {
@@ -212,6 +215,7 @@ impl ProcessingViewModelBuilder {
             raw_results: Vec::new(),
             search_query: "".to_string(),
             status_filter: "All Files".to_string(),
+            activity_logs: Vec::new(),
         }
     }
 }
@@ -223,9 +227,17 @@ impl Default for ProcessingViewModelBuilder {
 }
 
 impl ProcessingViewModelBuilder {
+    fn append_log(&mut self, msg: String) {
+        if self.activity_logs.len() >= 100 {
+            self.activity_logs.remove(0);
+        }
+        self.activity_logs.push(msg);
+    }
+
     pub fn apply_event(&mut self, event: AppEvent) {
         match event {
             AppEvent::ProcessingPhaseStarted { name, total_files } => {
+                self.append_log(format!("Phase started: {}", name));
                 self.is_processing = true;
                 self.is_finished = false;
                 if name.starts_with("Restoring") && self.start_time.is_none() {
@@ -266,11 +278,17 @@ impl ProcessingViewModelBuilder {
                     self.ok_count + self.error_count + self.skipped_count + self.unmatched_count;
                 self.completed_files = total_done.min(self.total_files);
             }
-            AppEvent::Warning { .. } => {
+            AppEvent::Warning { message } => {
+                self.append_log(format!("Warning: {}", message));
                 self.has_errors = true;
                 self.terminal_state = "completed_with_issues".to_string();
             }
             AppEvent::Error { fatal, message, .. } => {
+                self.append_log(format!(
+                    "{}: {}",
+                    if fatal { "Fatal Error" } else { "Error" },
+                    message
+                ));
                 self.has_errors = true;
                 self.terminal_state = "failed".to_string();
                 if fatal {
@@ -343,6 +361,7 @@ impl ProcessingViewModelBuilder {
                 };
             }
             AppEvent::RunCompleted { results } => {
+                self.append_log("Restoration run complete.".to_string());
                 self.is_processing = false;
                 self.is_finished = true;
                 self.completed_files = self.total_files;
@@ -362,11 +381,15 @@ impl ProcessingViewModelBuilder {
                     .into_iter()
                     .map(|m| {
                         let ext = m.extension.to_lowercase();
-                        let is_video = m.has_live_video
-                            || ext == ".mp4"
+                        let is_video = ext == ".mp4"
                             || ext == ".mov"
                             || ext == ".avi"
-                            || ext == ".mkv";
+                            || ext == ".mkv"
+                            || ext == ".webm"
+                            || ext == ".wmv"
+                            || ext == ".flv"
+                            || ext == ".m4v"
+                            || ext == ".3gp";
 
                         if m.status.is_terminal() && m.status != FileStatus::Skipped {
                             if is_video {
@@ -559,6 +582,7 @@ impl ProcessingViewModelBuilder {
             recent_runs: self.recent_runs.clone(),
             settings: self.settings.clone(),
             results: filtered_results,
+            activity_logs: self.activity_logs.clone(),
         }
     }
 }
@@ -573,7 +597,7 @@ fn current_timestamp() -> u128 {
 fn format_time(seconds: u64) -> String {
     let m = seconds / 60;
     let s = seconds % 60;
-    if m > 60 {
+    if m >= 60 {
         let h = m / 60;
         let rem_m = m % 60;
         format!("{}h {}m", h, rem_m)
