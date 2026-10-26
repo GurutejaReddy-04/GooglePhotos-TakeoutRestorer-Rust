@@ -50,6 +50,8 @@ fn test_small_dataset_pipeline() {
         use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),
+        is_running: Arc::new(AtomicBool::new(false)),
+        pipeline_thread: Arc::new(Mutex::new(None)),
     });
 
     dispatcher.dispatch(UiCommand::StartProcessing).unwrap();
@@ -124,6 +126,8 @@ fn test_edge_cases_pipeline() {
         use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),
+        is_running: Arc::new(AtomicBool::new(false)),
+        pipeline_thread: Arc::new(Mutex::new(None)),
     });
 
     dispatcher.dispatch(UiCommand::StartProcessing).unwrap();
@@ -248,6 +252,8 @@ fn test_staging_directory_cleanup() {
         use_system_exiftool: Arc::new(Mutex::new(true)),
         concurrency_limit: Arc::new(Mutex::new(4)),
         config: Arc::new(Mutex::new(config)),
+        is_running: Arc::new(AtomicBool::new(false)),
+        pipeline_thread: Arc::new(Mutex::new(None)),
     });
 
     dispatcher.dispatch(UiCommand::StartProcessing).unwrap();

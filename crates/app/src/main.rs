@@ -6,7 +6,7 @@ use app_core::events::{AppEvent, Broadcaster, EventPublisher};
 use app_core::logger::init_logging;
 use clap::Parser;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use shared_ui::{CommandDispatcher, SnapshotPolicy, UiCommand, ViewModelUpdater};
@@ -93,6 +93,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use_system_exiftool: Arc::new(Mutex::new(cli.use_system_exiftool)),
         concurrency_limit: Arc::new(Mutex::new(config.processing.max_workers)),
         config: Arc::new(Mutex::new(config.clone())),
+        is_running: Arc::new(AtomicBool::new(false)),
+        pipeline_thread: Arc::new(Mutex::new(None)),
     });
 
     #[cfg(feature = "gui")]
@@ -114,9 +116,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let dispatcher_ctrlc = dispatcher.clone();
+    let ctrlc_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let ctrlc_count_clone = Arc::clone(&ctrlc_count);
     ctrlc::set_handler(move || {
-        let _ = dispatcher_ctrlc.dispatch(UiCommand::CancelProcessing);
-        app_core::exiftool::cleanup_all_processes();
+        let count = ctrlc_count_clone.fetch_add(1, Ordering::SeqCst);
+        if count == 0 {
+            eprintln!("\nCancellation requested. Finishing current operations cleanly... (press Ctrl+C again to force exit)");
+            let _ = dispatcher_ctrlc.dispatch(UiCommand::CancelProcessing);
+        } else {
+            eprintln!("\nForced termination requested. Terminating ExifTool and exiting.");
+            app_core::exiftool::cleanup_all_processes();
+            std::process::exit(130);
+        }
     })
     .map_err(|e| app_core::error::AppError::Io(std::io::Error::other(e.to_string())))?;
 
@@ -125,9 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("--- Takeout Restorer ---");
     use std::io::Write;
     let mut last_len: usize = 0;
-    loop {
-        let snapshot = snapshot_rx.wait_changed();
-
+    while let Some(snapshot) = snapshot_rx.wait_changed() {
         let line = format!(
             "Progress: {} | ETA: {} | Speed: {} | Phase: {} | Errors: {}",
             snapshot.formatted_progress,
@@ -152,9 +161,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Give the background pipeline thread time to finish cleanup
-    // (staging dir removal, DB flush, ExifTool shutdown).
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    // Await background pipeline thread completion cleanly
+    dispatcher.join_pipeline();
 
     // Print final summary with error information
     let final_snapshot = snapshot_rx.borrow();

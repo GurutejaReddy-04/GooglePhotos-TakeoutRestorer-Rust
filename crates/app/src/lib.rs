@@ -27,9 +27,23 @@ pub struct CoreDispatcher {
     pub concurrency_limit: Arc<Mutex<usize>>,
 
     pub config: Arc<Mutex<Config>>,
+    pub is_running: Arc<AtomicBool>,
+    pub pipeline_thread: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
 }
 
 impl CoreDispatcher {
+    /// Awaits completion of the active pipeline orchestrator thread.
+    pub fn join_pipeline(&self) {
+        let handle = self
+            .pipeline_thread
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        if let Some(h) = handle {
+            let _ = h.join();
+        }
+    }
+
     /// Single canonical conversion point for run identifiers.
     /// Strips the "state_" prefix if present, returning the bare identifier.
     fn canonical_run_id(raw_id: &str) -> String {
@@ -146,6 +160,8 @@ impl CoreDispatcher {
                 }
             }
             let _ = std::fs::remove_file(&db_path);
+            let _ = std::fs::remove_file(format!("{}-wal", db_path.display()));
+            let _ = std::fs::remove_file(format!("{}-shm", db_path.display()));
         }
         if lock_path.exists() {
             let _ = std::fs::remove_file(&lock_path);
@@ -221,6 +237,14 @@ impl CommandDispatcher for CoreDispatcher {
     fn dispatch(&self, cmd: UiCommand) -> Result<(), String> {
         match cmd {
             UiCommand::StartProcessing => {
+                if self
+                    .is_running
+                    .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_err()
+                {
+                    return Err("Processing is already active".to_string());
+                }
+
                 let inputs = self
                     .input_dirs
                     .lock()
@@ -278,7 +302,16 @@ impl CommandDispatcher for CoreDispatcher {
                 let publisher = Arc::clone(&self.publisher);
 
                 // Offload Core execution to a background orchestrator thread
-                thread::spawn(move || {
+                let is_running_clone = Arc::clone(&self.is_running);
+                struct RunningGuard(Arc<AtomicBool>);
+                impl Drop for RunningGuard {
+                    fn drop(&mut self) {
+                        self.0.store(false, Ordering::SeqCst);
+                    }
+                }
+
+                let handle = thread::spawn(move || {
+                    let _guard = RunningGuard(is_running_clone);
                     if let Err(e) = run_core_pipeline(
                         inputs,
                         out_dir,
@@ -298,6 +331,11 @@ impl CommandDispatcher for CoreDispatcher {
                         });
                     }
                 });
+
+                *self
+                    .pipeline_thread
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = Some(handle);
 
                 Ok(())
             }
@@ -388,6 +426,16 @@ impl CommandDispatcher for CoreDispatcher {
                                 .concurrency_limit
                                 .lock()
                                 .unwrap_or_else(|e| e.into_inner()) = avail;
+                        } else {
+                            let cores = std::thread::available_parallelism()
+                                .map(|n| n.get())
+                                .unwrap_or(4);
+                            let baseline = (cores * 3 / 4).clamp(4, 16);
+                            config.processing.max_workers = baseline;
+                            *self
+                                .concurrency_limit
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner()) = baseline;
                         }
                     }
                     "theme" => config.ui.theme = value,
@@ -412,6 +460,7 @@ impl CommandDispatcher for CoreDispatcher {
             UiCommand::ResetState => {
                 self.cancel_token.store(false, Ordering::SeqCst);
                 self.pause_token.store(false, Ordering::SeqCst);
+                self.is_running.store(false, Ordering::SeqCst);
                 *self.db_path.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 *self.input_dirs.lock().unwrap_or_else(|e| e.into_inner()) = Vec::new();
                 *self.output_dir.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -487,10 +536,11 @@ pub fn run_core_pipeline(
         let cores = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
-        config
-            .processing
-            .max_workers
-            .max((cores * 3 / 4).clamp(4, 16))
+        if config.processing.max_workers > 0 {
+            config.processing.max_workers.clamp(1, cores * 2)
+        } else {
+            (cores * 3 / 4).clamp(4, 16)
+        }
     };
     let pool = ExifToolPool::new(binary_path, pool_size)?;
 
@@ -662,6 +712,8 @@ mod tests {
             use_system_exiftool: Arc::new(Mutex::new(true)),
             concurrency_limit: Arc::new(Mutex::new(4)),
             config: Arc::new(Mutex::new(Config::default())),
+            is_running: Arc::new(AtomicBool::new(false)),
+            pipeline_thread: Arc::new(Mutex::new(None)),
         };
 
         dispatcher.dispatch(UiCommand::ResetState).unwrap();
@@ -687,6 +739,8 @@ mod tests {
             use_system_exiftool: Arc::new(Mutex::new(true)),
             concurrency_limit: Arc::new(Mutex::new(4)),
             config: Arc::new(Mutex::new(Config::default())),
+            is_running: Arc::new(AtomicBool::new(false)),
+            pipeline_thread: Arc::new(Mutex::new(None)),
         };
 
         dispatcher.dispatch(UiCommand::PauseProcessing).unwrap();
