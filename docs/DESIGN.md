@@ -30,11 +30,11 @@ Components must NEVER hardcode colors or sizes. They must bind to `Theme.slint`.
 - `status_error`, `status_success`, `status_warning`, `status_info`: Chromatic semantic indicators.
 
 ### Typography Hierarchy (System UI Font)
-- `text_xs` (11px, Medium 500): Timestamps, extremely dense tabular data.
-- `text_sm` (12px, Medium 500): **Default Body**. Used for lists, file paths, standard labels.
+- `text_xs` (12px, Medium 500): Timestamps, extremely dense tabular data.
+- `text_sm` (13px, Medium 500): **Default Body**. Used for lists, file paths, standard labels.
 - `text_base` (14px, SemiBold 600): Primary Button labels, sub-headers.
-- `text_lg` (16px, Bold 700): Section headers (e.g., "Step 2: Destination").
-- `text_xl` (20px, Bold 700): Page titles (e.g., "Welcome").
+- `text_lg` (17px, Bold 700): Section headers (e.g., "Step 2: Destination").
+- `text_xl` (21px, Bold 700): Page titles (e.g., "Welcome").
 
 ### Grid & Spacing System (4px Base)
 - `space_1` (4px): Gap between icon and text.
@@ -46,7 +46,7 @@ Components must NEVER hardcode colors or sizes. They must bind to `Theme.slint`.
 
 ### Border & Elevation System
 - `radius_sm` (4px): Inputs, compact buttons, badges.
-- `radius_md` (6px): Cards, dialogs.
+- `radius_md` (8px): Cards, dialogs.
 - **Elevation:** Drop shadows are strictly avoided to ensure rendering performance. Hierarchy is defined by background lightness: `bg_app` -> `bg_panel` -> `bg_surface`.
 
 ### Icon System

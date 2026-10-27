@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-10-13
 
+> *Note / Erratum:* Lock-free destination handling (replacing `FILE_MOVE_MUTEX`) and full in-memory sidecar streaming are currently scheduled for the upcoming v0.3.0 release (see `docs/ROADMAP.md`). macOS and Linux sleep inhibition stubs in `os_governor` are also slated for full native implementation in v0.3.0.
+
 ### Added
 - **Continuous Streaming Pipeline**: Producer-consumer architecture with backpressure channel buffers, eliminating full upfront directory scan delays before media restoration begins.
 - **Lock-Free Atomic Destination Handling**: Replaced static global file move mutex with atomic filesystem operations and per-destination isolation, unlocking maximum parallel throughput for multi-core Rayon workers.

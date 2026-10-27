@@ -26,8 +26,30 @@ default_image_extension = ".jpg"
 default_video_extension = ".mov"
 
 [processing]
-# Max concurrent background workers for ExifTool writes. Defaults to 4.
-max_workers = 4
+# Max concurrent background workers for ExifTool writes. Set to 0 for automatic core detection.
+max_workers = 0
+
+# Enable embedding GPS coordinates from sidecar metadata into media files. Defaults to true.
+gps_enabled = true
+
+# Enable offline timezone resolution to convert UTC timestamps to local capture times. Defaults to true.
+timezone_enabled = true
+
+# Enable organizing unmatched media files into the Unmatched folder. Defaults to true.
+unmatched_enabled = true
+
+# Anonymize media filenames and paths in log files for privacy. Defaults to false.
+anonymous_logging = false
+
+# Output mode: "copy" (extracts/copies to destination) or "in-place" (updates original files directly).
+output_mode = "copy"
+
+# High performance mode: disables power throttling and optimizes concurrency on Windows. Defaults to true.
+high_performance = true
+
+[ui]
+# Desktop theme: "System", "Light", or "Dark".
+theme = "System"
 
 [matching]
 # Max Levenshtein distance allowed to fuzzily match a media file to its JSON.

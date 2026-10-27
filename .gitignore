@@ -93,3 +93,4 @@ ehthumbs.db
 # 9. AI Tool & Environment Metadata
 # ------------------------------------------
 .gemini/
+.agents/

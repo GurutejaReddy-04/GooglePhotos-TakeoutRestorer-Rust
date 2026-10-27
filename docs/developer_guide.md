@@ -10,7 +10,7 @@ Run the app in CLI mode:
 `cargo run --bin TakeoutRestorer -- /path/to/takeout --output /path/to/dest`
 
 Run the app in GUI mode:
-`cargo run --bin TakeoutRestorer --features gui -- --gui`
+`cargo run --bin TakeoutRestorer -- --gui`
 
 ## Running Tests
 Run the entire test suite:

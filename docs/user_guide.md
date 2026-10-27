@@ -14,4 +14,4 @@ The dashboard will display:
 - Estimated Time to Completion (ETA).
 - Processing speed (files/second).
 
-You may click **Pause** at any time to temporarily halt execution, or **Cancel** to abort entirely.
+You may click **Cancel** at any time to gracefully abort execution.
