@@ -95,7 +95,7 @@ impl EventPublisher for Broadcaster {
         let is_terminal = matches!(
             event,
             AppEvent::RunCompleted { .. }
-                | AppEvent::ScanCompleted { .. }
+                | AppEvent::CancellationAcknowledged
                 | AppEvent::Error { fatal: true, .. }
         );
 

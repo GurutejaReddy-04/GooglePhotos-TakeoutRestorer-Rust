@@ -548,9 +548,12 @@ impl StateDatabase {
                                 _ => Ok(0),
                             };
                             if let Err(e) = res {
-                                warn!("Individual update failed for {:?}: {}", item, e);
                                 match item {
                                     StatusUpdate::Completed(id) => {
+                                        warn!(
+                                            "Individual update failed for Completed({}): {}",
+                                            id, e
+                                        );
                                         failed_items.push(RecoverableUpdate {
                                             id: *id,
                                             status: FileStatus::Completed,
@@ -558,6 +561,7 @@ impl StateDatabase {
                                         })
                                     }
                                     StatusUpdate::Error(id, msg) => {
+                                        warn!("Individual update failed for Error({}): {}", id, e);
                                         failed_items.push(RecoverableUpdate {
                                             id: *id,
                                             status: FileStatus::Error,
@@ -565,6 +569,10 @@ impl StateDatabase {
                                         })
                                     }
                                     StatusUpdate::Skipped(id, msg) => {
+                                        warn!(
+                                            "Individual update failed for Skipped({}): {}",
+                                            id, e
+                                        );
                                         failed_items.push(RecoverableUpdate {
                                             id: *id,
                                             status: FileStatus::Skipped,
