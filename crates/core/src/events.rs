@@ -92,26 +92,15 @@ impl EventPublisher for Broadcaster {
     fn publish(&self, event: AppEvent) {
         let mut senders = self.senders.write().unwrap_or_else(|e| e.into_inner());
 
-        let is_terminal = matches!(
-            event,
-            AppEvent::RunCompleted { .. }
-                | AppEvent::CancellationAcknowledged
-                | AppEvent::Error { fatal: true, .. }
-        );
-
         senders.retain(|tx| {
-            if is_terminal {
-                tx.send(event.clone()).is_ok()
-            } else {
-                match tx.try_send(event.clone()) {
-                    Ok(_) => true,
-                    Err(mpsc::TrySendError::Full(_)) => {
-                        // Slow subscriber: drop transient event to prevent backpressure,
-                        // but retain subscriber so telemetry bus stays connected.
-                        true
-                    }
-                    Err(mpsc::TrySendError::Disconnected(_)) => false,
+            match tx.try_send(event.clone()) {
+                Ok(_) => true,
+                Err(mpsc::TrySendError::Full(_)) => {
+                    // Slow subscriber: drop event to prevent backpressure / deadlock,
+                    // but retain subscriber so telemetry bus stays connected (CRIT-04).
+                    true
                 }
+                Err(mpsc::TrySendError::Disconnected(_)) => false,
             }
         });
     }
@@ -247,22 +236,21 @@ mod tests {
     fn test_slow_subscriber_policy() {
         let bus = Broadcaster::new();
 
-        // We can't easily mock the 10000 limit without changing the code,
-        // but we can manually force it if we had a configurable limit.
-        // For testing, we just trust the implementation or we can fill the queue.
         let sub = bus.subscribe();
 
         for _ in 0..10000 {
-            bus.publish(AppEvent::RunCompleted {
-                results: Vec::new(),
+            bus.publish(AppEvent::Warning {
+                message: "test".to_string(),
             });
         }
 
-        // The queue is now full. The next publish should disconnect `sub`.
-        bus.publish(AppEvent::CancellationAcknowledged);
+        // The queue is now full. Next publish drops the transient event but retains the subscriber (CRIT-04).
+        bus.publish(AppEvent::Warning {
+            message: "overflow".to_string(),
+        });
 
-        // Check that the bus pruned the sender
-        assert_eq!(bus.senders.read().unwrap().len(), 0);
+        // Check that the bus retained the subscriber
+        assert_eq!(bus.senders.read().unwrap().len(), 1);
 
         // `sub` should still have the original 10000 events
         let mut count = 0;
