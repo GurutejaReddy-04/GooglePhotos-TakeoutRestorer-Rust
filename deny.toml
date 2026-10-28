@@ -1,15 +1,7 @@
 [advisories]
 unmaintained = "none"
 yanked = "warn"
-ignore = [
-    "RUSTSEC-2026-0346",
-    "RUSTSEC-2026-0347",
-    "RUSTSEC-2026-0348",
-    "RUSTSEC-2026-0349",
-    "RUSTSEC-2026-0398",
-    "RUSTSEC-2026-0403",
-    "RUSTSEC-2026-0410",
-]
+ignore = []
 
 [licenses]
 allow = [
