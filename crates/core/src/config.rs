@@ -134,6 +134,9 @@ impl Config {
 
     /// Enforce runtime invariants. Returns error if irrecoverable.
     pub fn validate(&mut self) -> Result<(), AppError> {
+        if self.processing.max_workers == 0 {
+            self.processing.max_workers = 1;
+        }
         if self.matching.levenshtein_threshold == 0 {
             self.matching.levenshtein_threshold = 1;
         }
@@ -194,7 +197,7 @@ pub struct ProcessingConfig {
 impl Default for ProcessingConfig {
     fn default() -> Self {
         Self {
-            max_workers: 0,
+            max_workers: 4,
             gps_enabled: true,
             timezone_enabled: true,
             unmatched_enabled: true,
