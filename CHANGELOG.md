@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-28
+
 ### Fixed
 - **Downloader Archive Extraction (`CRIT-02`)**: Fixed path prefix stripping in `extract_zip()` so root-level executables (such as official Windows `exiftool(-k).exe`) are extracted cleanly instead of skipped as empty relative paths.
 - **Watch Channel Concurrency (`CRIT-03`)**: Added explicit closure tracking (`is_closed`) and wake-up notifications on `Sender::drop` in `shared_ui::watch`, preventing background thread deadlocks, and ensuring `wait_changed()` yields unconsumed versions before terminating.

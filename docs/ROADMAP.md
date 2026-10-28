@@ -20,7 +20,22 @@ The following architectural optimizations and safety invariants were delivered a
 
 ---
 
-## 2. Future Architectural & Throughput Milestones (v0.3.0 Milestone)
+## 2. Delivered Hardening & Audit Remediations (v0.2.2 Milestone)
+
+The following fixes and reliability hardening measures were delivered and verified in **v0.2.2** following an independent system audit:
+- **ExifTool Archive Extraction:** Fixed extraction prefix stripping so official standalone executables (`exiftool(-k).exe`) with no enclosing directory are extracted cleanly (`CRIT-02`).
+- **Deadlock-Free Watch Channels:** Added channel closure state tracking and wake-up notifications on sender drop in `shared_ui::watch`, eliminating worker thread hangs (`CRIT-03`).
+- **In-Place ZIP Relocation:** Relocated ZIP media extraction to the configured output directory in in-place mode to prevent files remaining trapped in temporary staging directories (`CRIT-01`).
+- **Cross-Volume Timestamp Preservation:** Enforced `set_file_timestamps` directly on destination paths across different physical disk drives (`HIGH-01`).
+- **Non-Blocking Telemetry Broadcaster:** Ensured event bus fan-out never deadlocks on saturated channel buffers while preserving active subscribers (`CRIT-04`).
+- **Cooperative 2-Stage Process Supervision:** Added graceful SIGINT (Ctrl+C) handling in CLI mode with immediate-abort fallback, ensuring active write operations flush safely without database corruption (`CRIT-05`).
+- **Engine Concurrency Guard:** Guarded against duplicate pipeline launches with RAII `RunningGuard` (`HIGH-04`) and ensured worker thread pool joining (`HIGH-05`).
+- **Telemetry & View Model Binding:** Synchronized rolling event logs to the Slint activity panel (`MED-01`) and updated video extension classifications (`MED-02`).
+- **Multi-Monitor Window Geometry:** Added multi-monitor coordinate clamping and non-maximized window geometry restoration (`LOW-01`, `LOW-02`).
+
+---
+
+## 3. Future Architectural & Throughput Milestones (v0.3.0 Milestone)
 
 The following items represent confirmed throughput governors identified during concurrency profiling, scheduled for **v0.3.0**:
 
