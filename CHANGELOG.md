@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Downloader Archive Extraction (`CRIT-02`)**: Fixed path prefix stripping in `extract_zip()` so root-level executables (such as official Windows `exiftool(-k).exe`) are extracted cleanly instead of skipped as empty relative paths.
+- **Watch Channel Concurrency (`CRIT-03`)**: Added explicit closure tracking (`is_closed`) and wake-up notifications on `Sender::drop` in `shared_ui::watch`, preventing background thread deadlocks, and ensuring `wait_changed()` yields unconsumed versions before terminating.
+- **In-Place ZIP Extraction Safety (`CRIT-01`)**: Relocated ZIP extractions out of transient staging directories into the configured destination directory when in in-place mode, ensuring restored ZIP files are never orphaned in temporary folders.
+- **Timestamp Preservation Across Drives (`HIGH-01`)**: Ensured `set_file_timestamps` is executed directly on the final destination path, preserving media creation timestamps across physical storage volumes.
+- **Event Bus Backpressure & Deadlock (`CRIT-04`)**: Switched `Broadcaster::publish` to non-blocking `try_send` across all event types, preventing worker pool deadlocks on saturated channels while retaining slow subscribers.
+- **2-Stage Clean Shutdown (`CRIT-05`)**: Added cooperative SIGINT (Ctrl+C) handling in the CLI runner with a second-signal fallback, allowing active I/O writes to flush cleanly without corrupting the media database.
+- **Atomic Concurrency Guard (`HIGH-04`, `HIGH-05`)**: Implemented RAII `RunningGuard` to prevent overlapping engine starts and guaranteed joining of background worker threads upon application termination.
+- **Dynamic Pre-Flight Disk Space Scaling (`HIGH-02`)**: Scaled disk capacity estimations based on actual payload size rather than static minimums.
+- **Robust Metadata Parsing (`HIGH-03`)**: Made `GeoData.altitude` optional to prevent deserialization failure on photos without altitude telemetry.
+- **UI & Telemetry Synchronization (`MED-01`, `MED-02`, `MED-04`, `HIGH-06`)**: Bound rolling event logs to the Slint GUI activity panel, expanded video extension recognition, and corrected output directory resolution.
+- **Window Geometry & Positioning (`LOW-01`, `LOW-02`, `LOW-03`, `LOW-04`)**: Fixed multi-monitor coordinate clamping, preserved non-maximized window geometry, corrected elapsed time formatting boundaries, and resolved folder dialog re-spawn bugs.
+
 ## [0.2.1] - 2026-10-14
 
 ### Fixed
